@@ -87,6 +87,10 @@ flowchart TD
 
 Eventos nomeados especificamente (`packages/shared/src/events.ts`) — nunca eventos genéricos `update`/`data` (spec §8). Cada módulo do backend emite via `shared/realtime.ts`; o frontend assina via o hook `useSocketEvent` e invalida as queries do TanStack Query correspondentes.
 
+## WhatsApp provider — inicialização preguiçosa
+
+`whatsapp.service.ts` constrói o `WhatsAppWebProvider` sob demanda (na primeira chamada a `connect`/`disconnect`/`status`), em vez de como efeito colateral do import do módulo. Isso não é só estilo: durante o desenvolvimento, construir o provider no carregamento do módulo — antes do resto do app terminar de inicializar — causava uma falha nativa (`RemoveEnvironmentCleanupHook`) no Node 24 no Windows quando combinado com outros addons nativos já carregados (Argon2, better-sqlite3). Adiar a construção resolveu o problema para o resto da aplicação; o lançamento real do Chromium pelo Puppeteer (`Client.initialize()`) ainda expõe uma incompatibilidade separada e conhecida entre Node 24 e `child_process` no Windows — por isso a recomendação de Node 20/22 LTS para a conexão do WhatsApp funcionar (veja README → Known Limitations).
+
 ## IA local
 
 `apps/api/src/modules/ai/ai-provider.ts` define a interface `AIProvider`; `OllamaProvider` é a única implementação hoje. Todo call-site passa por `safeAI()`, que nunca deixa uma falha de IA quebrar o fluxo principal (spec §35). Saídas do modelo são sempre validadas com Zod (spec §37) antes de tocar o banco.

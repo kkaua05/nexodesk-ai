@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { formatCents, formatDate, formatDateTime, initials } from "@/lib/format";
 import { useCustomer, useCustomerTimeline, useCustomerProjects, useCustomerProposals, useCustomerReceivables } from "@/hooks/use-customers";
+import { NotesPanel } from "@/components/notes/notes-panel";
+import { FilesPanel } from "@/components/attachments/files-panel";
 
 const TIMELINE_ICON: Record<string, string> = {
   whatsapp_contact: "💬",
@@ -61,6 +63,8 @@ export function CustomerDetailPage() {
           <TabsTrigger value="projects">Projetos</TabsTrigger>
           <TabsTrigger value="proposals">Propostas</TabsTrigger>
           <TabsTrigger value="financial">Financeiro</TabsTrigger>
+          <TabsTrigger value="files">Arquivos</TabsTrigger>
+          <TabsTrigger value="notes">Notas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="timeline">
@@ -139,6 +143,22 @@ export function CustomerDetailPage() {
             ))}
             {(!receivables || receivables.length === 0) && <p className="text-sm text-muted-foreground">Nenhum lançamento.</p>}
           </div>
+        </TabsContent>
+
+        <TabsContent value="files">
+          <Card>
+            <CardContent className="p-6">
+              <FilesPanel entityType="customer" entityId={customer.id} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notes">
+          <Card>
+            <CardContent className="p-6">
+              <NotesPanel entityType="customer" entityId={customer.id} />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

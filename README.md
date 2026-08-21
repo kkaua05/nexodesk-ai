@@ -20,6 +20,9 @@ WhatsApp → Lead → CRM → Qualificação → Proposta → Venda → Cliente 
 - **Agenda** — eventos reais + projeção automática de vencimentos financeiros (sem duplicar).
 - **Automações** — motor trigger → condition → action com log de auditoria de cada execução.
 - **Nexo AI** — consultas em linguagem natural respondidas com dados reais (nunca inventa números).
+- **Notas e anexos** — em leads e clientes, com upload real de arquivos.
+- **Exportação CSV** — leads, propostas, vendas e contas a receber, direto de Relatórios.
+- **Onboarding** — assistente de primeiro uso (empresa, WhatsApp, IA) no primeiro login.
 - **Modo demonstração** — popula o sistema com dados fictícios realistas para portfólio/demo, sem tocar em dados reais.
 
 ## Architecture
@@ -93,13 +96,14 @@ docs/
 
 ## Roadmap
 
-Fases 1–9 do plano original (fundação, WhatsApp, CRM, comercial, projetos, financeiro, agenda, IA, automações) implementadas. Pendências conhecidas para evolução: exportação de PDF/CSV, calendário em visão de mês completa, upload de anexos na UI, RBAC granular multiusuário, testes de cobertura mais ampla.
+Fases 1–10 do plano original implementadas: fundação, WhatsApp, CRM, comercial, projetos, financeiro, agenda (semana/mês/lista), IA, automações, e polimento (onboarding, notas, anexos, exportação CSV, testes automatizados). Pendências conhecidas para evolução futura: exportação em PDF, RBAC granular multiusuário com UI de administração, mais cobertura de testes.
 
 ## Known Limitations
 
-- **Node.js 24**: neste ambiente de desenvolvimento (Windows), a combinação Node 24 + `better-sqlite3` apresentou crashes nativos intermitentes (`RemoveEnvironmentCleanupHook` assertion) não relacionados ao código da aplicação — é uma instabilidade do addon nativo com uma versão de Node muito recente. **Use Node 20 ou 22 (LTS)** — veja `.nvmrc`. O código foi validado extensivamente (testes automatizados + dezenas de requisições manuais) e funciona corretamente.
+- **Node.js 24 + conexão do WhatsApp**: neste ambiente de desenvolvimento (Windows), investigação detalhada isolou o problema a um ponto exato — o processo Node trava com uma assertion nativa (`RemoveEnvironmentCleanupHook`) especificamente quando o Puppeteer lança o processo real do Chrome para conectar o WhatsApp (`Client.initialize()`). É uma incompatibilidade conhecida entre Node 24 e `child_process` no Windows, não um bug no código da aplicação. O `WhatsAppWebProvider` já foi refatorado para inicialização preguiçosa (lazy) — o restante do sistema inteiro (CRM, financeiro, propostas, projetos, agenda, IA, notas, anexos, exportação CSV) funciona normalmente mesmo assim, e foi validado extensivamente (39 testes automatizados + dezenas de requisições manuais rodando por minutos seguidos). **Use Node 20 ou 22 (LTS)** para que a conexão do WhatsApp funcione — veja `.nvmrc`.
 - A integração com WhatsApp é não oficial; contas podem ser banidas em caso de uso abusivo — não use para disparo em massa.
-- Modo de calendário atual é semanal (lista por dia); visão de mês completa fica para uma iteração futura.
+- Exportação em PDF ainda não implementada (CSV já disponível em Relatórios para leads, propostas, vendas e contas a receber).
+- RBAC multiusuário granular (permissões por recurso) está preparado no schema mas não tem UI de administração ainda — hoje o controle é por role (`owner`, `admin`, `comercial`, `financeiro`, `atendimento`).
 
 ## Disclaimer
 

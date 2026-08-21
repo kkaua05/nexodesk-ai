@@ -6,7 +6,7 @@ import {
   clearWhatsappSession,
   getWhatsappStatus,
   getLastQrCode,
-  whatsappProvider,
+  sendWhatsappMessage,
 } from "./whatsapp.service.js";
 
 const sendMessageSchema = z.object({
@@ -42,7 +42,7 @@ export async function whatsappRoutes(app: FastifyInstance) {
     { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
     async (request, reply) => {
       const { recipient, message } = sendMessageSchema.parse(request.body);
-      await whatsappProvider.sendMessage(recipient, message);
+      await sendWhatsappMessage(recipient, message);
       return reply.status(202).send({ message: "Mensagem enviada" });
     },
   );

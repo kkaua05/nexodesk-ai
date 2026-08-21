@@ -3,6 +3,8 @@ import { Handshake, CheckSquare, StickyNote } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { NotesPanel } from "@/components/notes/notes-panel";
 import { initials, formatCents } from "@/lib/format";
 import type { Conversation } from "@/hooks/use-conversations";
 import { useLeads } from "@/hooks/use-leads";
@@ -67,10 +69,17 @@ export function ContactPanel({ conversation }: { conversation: Conversation }) {
           <CheckSquare className="h-4 w-4" />
           Criar tarefa
         </Button>
-        <Button variant="outline" size="sm" className="w-full justify-start" disabled>
-          <StickyNote className="h-4 w-4" />
-          Adicionar nota
-        </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full justify-start" disabled={!lead}>
+              <StickyNote className="h-4 w-4" />
+              Adicionar nota
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80" align="start">
+            {lead && <NotesPanel entityType="lead" entityId={lead.id} />}
+          </PopoverContent>
+        </Popover>
         <Button size="sm" className="w-full justify-start" disabled={!lead} onClick={() => setCloseSaleOpen(true)}>
           <Handshake className="h-4 w-4" />
           Registrar venda

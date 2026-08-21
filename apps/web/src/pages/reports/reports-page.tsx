@@ -1,11 +1,22 @@
+import { Download } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { formatCents } from "@/lib/format";
+import { downloadFromApi } from "@/lib/download";
 import { useLeads } from "@/hooks/use-leads";
 import { useProposals } from "@/hooks/use-proposals";
 import { useFinancialOverview } from "@/hooks/use-finance";
 import { useProjects } from "@/hooks/use-projects";
 import { useTasks } from "@/hooks/use-tasks";
 import { useServicesSoldChart } from "@/hooks/use-dashboard";
+
+const EXPORTS = [
+  { path: "/reports/leads.csv", filename: "leads.csv", label: "Leads" },
+  { path: "/reports/proposals.csv", filename: "propostas.csv", label: "Propostas" },
+  { path: "/reports/sales.csv", filename: "vendas.csv", label: "Vendas" },
+  { path: "/reports/receivables.csv", filename: "contas-a-receber.csv", label: "Contas a receber" },
+];
 
 export function ReportsPage() {
   const { data: leads } = useLeads();
@@ -25,9 +36,26 @@ export function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Relatórios</h1>
-        <p className="text-sm text-muted-foreground">Visão consolidada comercial, financeira e operacional.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Relatórios</h1>
+          <p className="text-sm text-muted-foreground">Visão consolidada comercial, financeira e operacional.</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {EXPORTS.map((exportItem) => (
+            <Button
+              key={exportItem.path}
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                downloadFromApi(exportItem.path, exportItem.filename).catch(() => toast.error(`Não foi possível exportar ${exportItem.label.toLowerCase()}`))
+              }
+            >
+              <Download className="h-3.5 w-3.5" />
+              {exportItem.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       <Card>

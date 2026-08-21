@@ -5,7 +5,7 @@ import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
 import { NotFoundError, createId } from "@nexodesk/shared";
 import { listConversations, listMessages, markConversationRead, appendMessage } from "./conversations.service.js";
-import { whatsappProvider } from "../whatsapp/whatsapp.service.js";
+import { sendWhatsappMessage } from "../whatsapp/whatsapp.service.js";
 import { suggestReply } from "../ai/ai.service.js";
 
 const sendSchema = z.object({ body: z.string().min(1) });
@@ -53,7 +53,7 @@ export async function conversationsRoutes(app: FastifyInstance) {
     });
 
     try {
-      await whatsappProvider.sendMessage(contact.phoneNormalized, body);
+      await sendWhatsappMessage(contact.phoneNormalized, body);
       db.update(schema.messages).set({ status: "enviado" }).where(eq(schema.messages.id, message.id)).run();
     } catch (error) {
       db.update(schema.messages)

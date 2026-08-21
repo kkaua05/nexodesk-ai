@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
+import multipart from "@fastify/multipart";
 import { env } from "./shared/env.js";
 import { registerErrorHandler } from "./shared/error-handler.js";
 import authPlugin from "./plugins/auth.js";
@@ -26,6 +27,10 @@ import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
 import { aiRoutes } from "./modules/ai/ai.routes.js";
 import { settingsRoutes } from "./modules/settings/settings.routes.js";
 import { searchRoutes } from "./modules/search/search.routes.js";
+import { notesRoutes } from "./modules/notes/notes.routes.js";
+import { attachmentsRoutes } from "./modules/attachments/attachments.routes.js";
+import { reportsRoutes } from "./modules/reports/reports.routes.js";
+import { onboardingRoutes } from "./modules/onboarding/onboarding.routes.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -39,6 +44,7 @@ export function buildApp() {
 
   app.register(cors, { origin: env.CORS_ORIGIN, credentials: true });
   app.register(rateLimit, { global: true, max: 200, timeWindow: "1 minute" });
+  app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024 } });
   app.register(authPlugin);
 
   app.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
@@ -64,6 +70,10 @@ export function buildApp() {
   app.register(aiRoutes, { prefix: "/api" });
   app.register(settingsRoutes, { prefix: "/api" });
   app.register(searchRoutes, { prefix: "/api" });
+  app.register(notesRoutes, { prefix: "/api" });
+  app.register(attachmentsRoutes, { prefix: "/api" });
+  app.register(reportsRoutes, { prefix: "/api" });
+  app.register(onboardingRoutes, { prefix: "/api" });
 
   return app;
 }
