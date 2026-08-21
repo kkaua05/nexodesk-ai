@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { useWhatsappStatus } from "@/hooks/use-whatsapp-status";
 import { api, ApiError } from "@/lib/api-client";
@@ -72,9 +73,17 @@ export function IntegrationsSettings() {
             <Button size="sm" variant="outline" onClick={() => run("disconnect")} disabled={current === "desconectado"}>
               Desconectar
             </Button>
-            <Button size="sm" variant="destructive" onClick={() => run("clear-session")}>
-              Limpar sessão
-            </Button>
+            <ConfirmDialog
+              title="Limpar sessão do WhatsApp?"
+              description="Você precisará escanear o QR Code novamente para reconectar."
+              confirmLabel="Limpar sessão"
+              onConfirm={() => run("clear-session")}
+              trigger={
+                <Button size="sm" variant="destructive">
+                  Limpar sessão
+                </Button>
+              }
+            />
           </div>
         </CardContent>
       </Card>

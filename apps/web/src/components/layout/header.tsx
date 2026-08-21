@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bell, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,8 +25,17 @@ export function Header() {
   const logout = useAuthStore((s) => s.logout);
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: notifications } = useNotifications();
   const unreadCount = notifications?.filter((n) => !n.readAt).length ?? 0;
+
+  function markRead(id: string) {
+    api.post(`/notifications/${id}/read`).then(() => queryClient.invalidateQueries({ queryKey: ["notifications"] }));
+  }
+
+  function markAllRead() {
+    api.post("/notifications/read-all").then(() => queryClient.invalidateQueries({ queryKey: ["notifications"] }));
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border/60 bg-background/80 px-6 backdrop-blur">
@@ -53,7 +63,14 @@ export function Header() {
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-0" align="end">
-            <div className="border-b border-border/60 px-4 py-3 text-sm font-semibold">Notificações</div>
+            <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+              <span className="text-sm font-semibold">Notificações</span>
+              {unreadCount > 0 && (
+                <button onClick={markAllRead} className="text-xs text-primary hover:underline">
+                  Marcar todas como lidas
+                </button>
+              )}
+            </div>
             <div className="max-h-80 overflow-y-auto scrollbar-thin">
               {!notifications || notifications.length === 0 ? (
                 <p className="p-4 text-sm text-muted-foreground">Nenhuma notificação por aqui.</p>
@@ -61,7 +78,7 @@ export function Header() {
                 notifications.slice(0, 15).map((n) => (
                   <button
                     key={n.id}
-                    onClick={() => api.post(`/notifications/${n.id}/read`)}
+                    onClick={() => markRead(n.id)}
                     className="flex w-full flex-col gap-0.5 border-b border-border/40 px-4 py-2.5 text-left text-sm transition-colors last:border-0 hover:bg-muted/50"
                   >
                     <span className={n.readAt ? "text-foreground/70" : "font-medium text-foreground"}>{n.title}</span>

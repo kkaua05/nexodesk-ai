@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { toast } from "sonner";
 import { File as FileIcon, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAttachments, useUploadAttachment, useDeleteAttachment, attachmentDownloadUrl } from "@/hooks/use-attachments";
 import { ApiError } from "@/lib/api-client";
 
@@ -47,9 +48,17 @@ export function FilesPanel({ entityType, entityId }: { entityType: string; entit
               <span className="truncate">{file.fileName}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{formatSize(file.sizeBytes)}</span>
             </a>
-            <button onClick={() => remove.mutate(file.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            <ConfirmDialog
+              title="Excluir arquivo?"
+              description={`"${file.fileName}" será removido permanentemente.`}
+              confirmLabel="Excluir"
+              onConfirm={() => remove.mutate(file.id)}
+              trigger={
+                <button className="shrink-0 text-muted-foreground hover:text-destructive">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              }
+            />
           </div>
         ))}
       </div>

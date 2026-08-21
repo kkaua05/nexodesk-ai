@@ -25,3 +25,11 @@ export function listNotifications(userId?: string) {
 export function markNotificationRead(id: string) {
   return db.update(schema.notifications).set({ readAt: new Date() }).where(eq(schema.notifications.id, id)).returning().get();
 }
+
+export function markAllNotificationsRead(userId: string) {
+  const unread = listNotifications(userId).filter((n) => !n.readAt);
+  const now = new Date();
+  for (const notification of unread) {
+    db.update(schema.notifications).set({ readAt: now }).where(eq(schema.notifications.id, notification.id)).run();
+  }
+}

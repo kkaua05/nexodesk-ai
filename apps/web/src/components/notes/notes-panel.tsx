@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDateTime } from "@/lib/format";
 import { useNotes, useCreateNote, useDeleteNote } from "@/hooks/use-notes";
 
@@ -33,9 +34,17 @@ export function NotesPanel({ entityType, entityId }: { entityType: string; entit
               <p>{note.body}</p>
               <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(note.createdAt)}</p>
             </div>
-            <button onClick={() => deleteNote.mutate(note.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            <ConfirmDialog
+              title="Excluir nota?"
+              description="Esta ação não pode ser desfeita."
+              confirmLabel="Excluir"
+              onConfirm={() => deleteNote.mutate(note.id)}
+              trigger={
+                <button className="shrink-0 text-muted-foreground hover:text-destructive">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              }
+            />
           </div>
         ))}
       </div>
