@@ -1,0 +1,50 @@
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "../../shared/database.js";
+import { schema } from "@nexodesk/database";
+import { NotFoundError, SOCKET_EVENTS, PROJECT_STATUS } from "@nexodesk/shared";
+import { emitEvent } from "../../shared/realtime.js";
+
+const statusSchema = z.object({ status: z.enum(PROJECT_STATUS) });
+const progressSchema = z.object({ progress: z.number().int().min(0).max(100) });
+
+export async function projectsRoutes(app: FastifyInstance) {
+  app.addHook("onRequest", app.authenticate);
+
+  app.get("/projects", async () => db.select().from(schema.projects).all());
+
+  app.get("/projects/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
+    if (!project) throw new NotFoundError("Projeto");
+    const stages = db.select().from(schema.projectStages).where(eq(schema.projectStages.projectId, id)).all();
+    const tasks = db.select().from(schema.tasks).where(eq(schema.tasks.projectId, id)).all();
+    return { ...project, stages, tasks };
+  });
+
+  app.patch("/projects/:id/status", async (request) => {
+    const { id } = request.params as { id: string };
+    const { status } = statusSchema.parse(request.body);
+    const project = db.update(schema.projects).set({ status }).where(eq(schema.projects.id, id)).returning().get();
+    if (!project) throw new NotFoundError("Projeto");
+    emitEvent(SOCKET_EVENTS.PROJECT_UPDATED, { project });
+    return project;
+  });
+
+  app.patch("/projects/:id/progress", async (request) => {
+    const { id } = request.params as { id: string };
+    const { progress } = progressSchema.parse(request.body);
+    const project = db.update(schema.projects).set({ progress }).where(eq(schema.projects.id, id)).returning().get();
+    if (!project) throw new NotFoundError("Projeto");
+    emitEvent(SOCKET_EVENTS.PROJECT_UPDATED, { project });
+    return project;
+  });
+
+  app.patch("/projects/stages/:stageId/complete", async (request) => {
+    const { stageId } = request.params as { stageId: string };
+    const stage = db.update(schema.projectStages).set({ completedAt: new Date() }).where(eq(schema.projectStages.id, stageId)).returning().get();
+    if (!stage) throw new NotFoundError("Etapa do projeto");
+    return stage;
+  });
+}

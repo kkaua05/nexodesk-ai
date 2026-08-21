@@ -1,0 +1,46 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# database (local data — never commit real business data)
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+apps/api/data/
+
+# whatsapp sessions (contains auth tokens for a real WhatsApp account)
+sessions/
+apps/api/sessions/
+.wwebjs_auth/
+.wwebjs_cache/
+
+# logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# uploads / attachments (may contain client files)
+uploads/
+apps/api/uploads/
+
+# editor / os
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# test / coverage
+coverage/
