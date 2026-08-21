@@ -87,9 +87,11 @@ flowchart TD
 
 Eventos nomeados especificamente (`packages/shared/src/events.ts`) — nunca eventos genéricos `update`/`data` (spec §8). Cada módulo do backend emite via `shared/realtime.ts`; o frontend assina via o hook `useSocketEvent` e invalida as queries do TanStack Query correspondentes.
 
-## WhatsApp provider — inicialização preguiçosa
+## WhatsApp provider — inicialização preguiçosa + Node 22 local
 
-`whatsapp.service.ts` constrói o `WhatsAppWebProvider` sob demanda (na primeira chamada a `connect`/`disconnect`/`status`), em vez de como efeito colateral do import do módulo. Isso não é só estilo: durante o desenvolvimento, construir o provider no carregamento do módulo — antes do resto do app terminar de inicializar — causava uma falha nativa (`RemoveEnvironmentCleanupHook`) no Node 24 no Windows quando combinado com outros addons nativos já carregados (Argon2, better-sqlite3). Adiar a construção resolveu o problema para o resto da aplicação; o lançamento real do Chromium pelo Puppeteer (`Client.initialize()`) ainda expõe uma incompatibilidade separada e conhecida entre Node 24 e `child_process` no Windows — por isso a recomendação de Node 20/22 LTS para a conexão do WhatsApp funcionar (veja README → Known Limitations).
+`whatsapp.service.ts` constrói o `WhatsAppWebProvider` sob demanda (na primeira chamada a `connect`/`disconnect`/`status`), em vez de como efeito colateral do import do módulo — evita uma colisão de inicialização entre addons nativos (Argon2, better-sqlite3) que ocorria no carregamento do módulo. A causa raiz mais profunda, porém, é do Node 24 no Windows em si: até addons nativos isolados (better-sqlite3 sozinho) e principalmente o lançamento real do Chrome pelo Puppeteer (`Client.initialize()`) disparam uma assertion nativa (`RemoveEnvironmentCleanupHook`) nessa combinação de SO+versão do Node.
+
+A correção definitiva é de infraestrutura, não de código de aplicação: `apps/api/scripts/run-server.mjs` re-executa o servidor com um Node 22 LTS baixado localmente em `.tools/` (via `pnpm setup:node22`) sempre que ele estiver presente, sem exigir alterar a instalação global do Node. Validado com o fluxo completo — login, CRUD, e `Client.initialize()` do Puppeteer lançando o Chrome de verdade e retornando o QR Code — rodando de forma estável.
 
 ## IA local
 

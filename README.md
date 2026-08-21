@@ -37,11 +37,15 @@ Monorepo pnpm com três camadas: `packages/shared` (tipos, regras de negócio pu
 
 ## Getting Started
 
-Pré-requisito: **Node.js 20 ou 22 (LTS)** — veja [Known Limitations](#known-limitations) sobre Node 24.
-
 ```bash
 # instalar dependências
 pnpm install
+
+# Windows apenas: baixa um Node 22 LTS local (não mexe na instalação do sistema) e
+# recompila o better-sqlite3 para ele — necessário por causa de uma instabilidade
+# nativa do Node 24 no Windows (veja Known Limitations). O apps/api/scripts/run-server.mjs
+# já detecta e usa esse Node automaticamente sempre que ele existir.
+pnpm setup:node22
 
 # copiar variáveis de ambiente
 cp apps/api/.env.example apps/api/.env
@@ -102,7 +106,7 @@ Fases 1–10 do plano original implementadas: fundação, WhatsApp, CRM, comerci
 
 ## Known Limitations
 
-- **Node.js 24 + conexão do WhatsApp**: neste ambiente de desenvolvimento (Windows), investigação detalhada isolou o problema a um ponto exato — o processo Node trava com uma assertion nativa (`RemoveEnvironmentCleanupHook`) especificamente quando o Puppeteer lança o processo real do Chrome para conectar o WhatsApp (`Client.initialize()`). É uma incompatibilidade conhecida entre Node 24 e `child_process` no Windows, não um bug no código da aplicação. O `WhatsAppWebProvider` já foi refatorado para inicialização preguiçosa (lazy) — o restante do sistema inteiro (CRM, financeiro, propostas, projetos, agenda, IA, notas, anexos, exportação CSV) funciona normalmente mesmo assim, e foi validado extensivamente (39 testes automatizados + dezenas de requisições manuais rodando por minutos seguidos). **Use Node 20 ou 22 (LTS)** para que a conexão do WhatsApp funcione — veja `.nvmrc`.
+- **Node.js 24 no Windows**: investigação detalhada (bisecção sistemática, isolando cada plugin/módulo) confirmou uma instabilidade nativa real — o processo Node trava com uma assertion (`RemoveEnvironmentCleanupHook`) quando módulos nativos (`better-sqlite3`, e principalmente o Chrome real lançado pelo Puppeteer via whatsapp-web.js) rodam sob Node 24 no Windows. Não é um bug no código da aplicação. A correção aplicada: `pnpm setup:node22` baixa um Node 22 LTS local isolado (dentro de `.tools/`, sem tocar a instalação do sistema) e `apps/api/scripts/run-server.mjs` o usa automaticamente sempre que presente — `pnpm dev`/`pnpm start` já funcionam direto, incluindo a conexão real do WhatsApp (testado e validado: login, CRUD completo, e o `Client.initialize()` do Puppeteer rodando establemente por minutos). Sem rodar `pnpm setup:node22`, o sistema roda no Node do sistema e pode apresentar os mesmos crashes se for Node 23+.
 - A integração com WhatsApp é não oficial; contas podem ser banidas em caso de uso abusivo — não use para disparo em massa.
 - Exportação em PDF ainda não implementada (CSV já disponível em Relatórios para leads, propostas, vendas e contas a receber).
 - RBAC multiusuário granular (permissões por recurso) está preparado no schema mas não tem UI de administração ainda — hoje o controle é por role (`owner`, `admin`, `comercial`, `financeiro`, `atendimento`).

@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "node scripts/run-server.mjs watch src/server.ts",
     "build": "tsc --noEmit",
-    "start": "tsx src/server.ts",
+    "start": "node scripts/run-server.mjs src/server.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings=0",
     "test": "vitest run"

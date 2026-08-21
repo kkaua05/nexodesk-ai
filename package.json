@@ -7,6 +7,7 @@
     "node": ">=20 <23"
   },
   "scripts": {
+    "setup:node22": "powershell -ExecutionPolicy Bypass -File scripts/setup-local-node.ps1",
     "dev": "pnpm --parallel --filter=./apps/* run dev",
     "dev:api": "pnpm --filter @nexodesk/api dev",
     "dev:web": "pnpm --filter @nexodesk/web dev",
