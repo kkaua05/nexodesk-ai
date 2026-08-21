@@ -1,13 +1,16 @@
 import { Server as SocketIOServer } from "socket.io";
 import type { Server as HTTPServer } from "node:http";
 import type { SocketEventName } from "@nexodesk/shared";
-import { env } from "./env.js";
+import { isAllowedOrigin } from "./cors.js";
 
 let io: SocketIOServer | undefined;
 
 export function initRealtime(httpServer: HTTPServer) {
   io = new SocketIOServer(httpServer, {
-    cors: { origin: env.CORS_ORIGIN, credentials: true },
+    cors: {
+      origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+      credentials: true,
+    },
   });
   return io;
 }

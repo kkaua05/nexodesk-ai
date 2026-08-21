@@ -190,9 +190,11 @@ function FinanceMiniCard({ label, cents, tone }: { label: string; cents: number 
     <Card>
       <CardContent className="p-4">
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className={`text-lg font-semibold ${tone === "success" ? "text-success" : tone === "destructive" ? "text-destructive" : ""}`}>
-          {cents === undefined ? <Skeleton className="mt-1 h-6 w-20" /> : formatCents(cents)}
-        </p>
+        {cents === undefined ? (
+          <Skeleton className="mt-1 h-6 w-20" />
+        ) : (
+          <p className={`text-lg font-semibold ${tone === "success" ? "text-success" : tone === "destructive" ? "text-destructive" : ""}`}>{formatCents(cents)}</p>
+        )}
       </CardContent>
     </Card>
   );

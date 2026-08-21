@@ -5,12 +5,15 @@ import { emitEvent } from "../../shared/realtime.js";
 import { SOCKET_EVENTS } from "@nexodesk/shared";
 import { env } from "../../shared/env.js";
 import { registerMessageHandler } from "./message-handler.js";
+import { createNotification } from "../notifications/notifications.service.js";
 import type { MessagingProvider, ConnectionStatus } from "./messaging-provider.js";
+import type { WhatsappConnectionStatus } from "@nexodesk/shared";
 
 const PROVIDER_KEY = "whatsapp";
 
 let provider: MessagingProvider | undefined;
 let lastQr: string | undefined;
+let previousStatus: WhatsappConnectionStatus | undefined;
 
 /**
  * Lazily constructs the WhatsApp provider on first use rather than as a module-level
@@ -33,6 +36,18 @@ async function getProvider(): Promise<MessagingProvider> {
 
     provider.on("status", (status) => {
       if (status.status === "conectado") lastQr = undefined;
+
+      // Only alert on a real drop (was connected, now isn't) — never on the initial
+      // "desconectado" before the user has connected for the first time.
+      if (previousStatus === "conectado" && (status.status === "desconectado" || status.status === "erro")) {
+        createNotification({
+          type: "whatsapp_desconectado",
+          title: "WhatsApp desconectado",
+          body: status.lastError ?? "A conexão com o WhatsApp caiu. Reconecte em Configurações → Integrações.",
+        });
+      }
+      previousStatus = status.status;
+
       persistIntegrationStatus(status);
       emitEvent(SOCKET_EVENTS.WHATSAPP_STATUS_CHANGED, { ...status });
     });
@@ -83,6 +98,26 @@ export async function getWhatsappStatus(): Promise<ConnectionStatus> {
 export async function sendWhatsappMessage(recipient: string, message: string): Promise<void> {
   const p = await getProvider();
   await p.sendMessage(recipient, message);
+}
+
+/**
+ * Reconnects automatically on server boot when a previously authenticated session is
+ * present on disk — otherwise every API restart would silently drop the WhatsApp
+ * connection and require the user to click "Conectar" and wait, even though nothing
+ * about their WhatsApp login actually changed (spec §6: session persisted locally).
+ */
+export async function autoReconnectWhatsappIfSessionExists(): Promise<void> {
+  const { existsSync, readdirSync } = await import("node:fs");
+  const path = await import("node:path");
+  const sessionDir = path.join(env.WHATSAPP_SESSION_PATH, "session");
+
+  if (!existsSync(sessionDir) || readdirSync(sessionDir).length === 0) return;
+
+  try {
+    await connectWhatsapp();
+  } catch (error) {
+    console.error("[whatsapp] falha ao reconectar automaticamente:", error);
+  }
 }
 
 export function getLastQrCode(): string | undefined {

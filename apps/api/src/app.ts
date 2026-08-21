@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import { env } from "./shared/env.js";
+import { isAllowedOrigin } from "./shared/cors.js";
 import { registerErrorHandler } from "./shared/error-handler.js";
 import authPlugin from "./plugins/auth.js";
 
@@ -42,7 +43,10 @@ export function buildApp() {
 
   registerErrorHandler(app);
 
-  app.register(cors, { origin: env.CORS_ORIGIN, credentials: true });
+  app.register(cors, {
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+    credentials: true,
+  });
   app.register(rateLimit, { global: true, max: 200, timeWindow: "1 minute" });
   app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024 } });
   app.register(authPlugin);

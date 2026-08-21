@@ -9,7 +9,7 @@
     "start": "node scripts/run-server.mjs src/server.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings=0",
-    "test": "vitest run"
+    "test": "node scripts/run-vitest.mjs run"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",

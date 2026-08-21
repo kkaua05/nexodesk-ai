@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { CommandPalette } from "./command-palette";
+import { RealtimeToasts } from "./realtime-toasts";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 
 export function AppLayout() {
@@ -16,6 +17,7 @@ export function AppLayout() {
       </div>
       <CommandPalette />
       <OnboardingWizard />
+      <RealtimeToasts />
     </div>
   );
 }

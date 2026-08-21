@@ -4,6 +4,7 @@ import { createLeadForContact, findActiveLeadByContact, applyScoreEvent } from "
 import { findOrCreateConversation, appendMessage, updateMessageStatus } from "../conversations/conversations.service.js";
 import { runAutomation } from "../automations/automations.service.js";
 import { analyzeConversation, extractLeadData } from "../ai/ai.service.js";
+import { createNotification } from "../notifications/notifications.service.js";
 import { emitEvent } from "../../shared/realtime.js";
 import { SOCKET_EVENTS } from "@nexodesk/shared";
 
@@ -51,6 +52,14 @@ async function handleIncomingMessage(event: IncomingMessageEvent) {
   });
 
   if (!isNewMessage) return; // duplicate provider event — already processed (spec §94)
+
+  createNotification({
+    type: "nova_mensagem",
+    title: `Nova mensagem de ${contact.name ?? contact.phoneNormalized}`,
+    body: event.body?.slice(0, 140),
+    entityType: "conversation",
+    entityId: conversation.id,
+  });
 
   let lead = findActiveLeadByContact(contact.id);
 

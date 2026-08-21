@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
 import { NotFoundError, createId } from "@nexodesk/shared";
-import { listConversations, listMessages, markConversationRead, appendMessage } from "./conversations.service.js";
+import { listConversations, listMessages, markConversationRead, appendMessage, updateMessageStatus } from "./conversations.service.js";
 import { sendWhatsappMessage } from "../whatsapp/whatsapp.service.js";
 import { suggestReply } from "../ai/ai.service.js";
 
@@ -54,12 +54,9 @@ export async function conversationsRoutes(app: FastifyInstance) {
 
     try {
       await sendWhatsappMessage(contact.phoneNormalized, body);
-      db.update(schema.messages).set({ status: "enviado" }).where(eq(schema.messages.id, message.id)).run();
+      updateMessageStatus(externalId, "enviado");
     } catch (error) {
-      db.update(schema.messages)
-        .set({ status: "falhou", failureReason: (error as Error).message })
-        .where(eq(schema.messages.id, message.id))
-        .run();
+      updateMessageStatus(externalId, "falhou", (error as Error).message);
     }
 
     return reply.status(201).send(db.select().from(schema.messages).where(eq(schema.messages.id, message.id)).get());

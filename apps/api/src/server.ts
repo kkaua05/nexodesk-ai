@@ -1,7 +1,7 @@
 import { buildApp } from "./app.js";
 import { env } from "./shared/env.js";
 import { initRealtime } from "./shared/realtime.js";
-import { initWhatsapp } from "./modules/whatsapp/whatsapp.service.js";
+import { initWhatsapp, autoReconnectWhatsappIfSessionExists } from "./modules/whatsapp/whatsapp.service.js";
 import { startAutomationScheduler } from "./modules/automations/scheduler.js";
 
 async function main() {
@@ -14,6 +14,8 @@ async function main() {
 
   await app.listen({ port: env.PORT, host: env.HOST });
   app.log.info(`NexoDesk AI API rodando em http://${env.HOST}:${env.PORT}`);
+
+  void autoReconnectWhatsappIfSessionExists();
 
   const shutdown = async () => {
     clearInterval(schedulerHandle);
