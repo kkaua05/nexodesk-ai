@@ -61,6 +61,8 @@ pnpm dev
 - Frontend: http://localhost:5173
 - Login de demonstração: `owner@nexodesk.local` / `nexodesk123` (definidos em `SEED_OWNER_EMAIL`/`SEED_OWNER_PASSWORD`)
 
+Para rodar em modo produção: `pnpm build` (typecheck da API + build otimizado do frontend) seguido de `pnpm start` (sobe a API via `tsx`, servindo o bundle do frontend a partir de um servidor estático de sua escolha — ex: `npx serve apps/web/dist`).
+
 ## WhatsApp Integration
 
 Integração via `whatsapp-web.js` (não oficial). Ao conectar em **Configurações → Integrações**, um QR Code é exibido para pareamento com o WhatsApp do celular. A sessão é persistida localmente (`WHATSAPP_SESSION_PATH`) e reconectada automaticamente com backoff exponencial limitado. Como é uma integração não oficial, evite disparos em massa — o provider já aplica um rate limit mínimo entre envios.
