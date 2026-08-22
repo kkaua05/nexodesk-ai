@@ -6,7 +6,7 @@ import { SOCKET_EVENTS } from "@nexodesk/shared";
 import { env } from "../../shared/env.js";
 import { registerMessageHandler } from "./message-handler.js";
 import { createNotification } from "../notifications/notifications.service.js";
-import type { MessagingProvider, ConnectionStatus } from "./messaging-provider.js";
+import type { MessagingProvider, ConnectionStatus, SendResult, SendMediaInput } from "./messaging-provider.js";
 import type { WhatsappConnectionStatus } from "@nexodesk/shared";
 
 const PROVIDER_KEY = "whatsapp";
@@ -95,9 +95,14 @@ export async function getWhatsappStatus(): Promise<ConnectionStatus> {
   return provider.getConnectionStatus();
 }
 
-export async function sendWhatsappMessage(recipient: string, message: string): Promise<void> {
+export async function sendWhatsappMessage(recipient: string, message: string): Promise<SendResult> {
   const p = await getProvider();
-  await p.sendMessage(recipient, message);
+  return p.sendMessage(recipient, message);
+}
+
+export async function sendWhatsappMedia(recipient: string, media: SendMediaInput): Promise<SendResult> {
+  const p = await getProvider();
+  return p.sendMedia(recipient, media);
 }
 
 /**

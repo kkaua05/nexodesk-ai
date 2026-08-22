@@ -1,10 +1,28 @@
 import pkg from "whatsapp-web.js";
-import type { Client as WWebClient, Message } from "whatsapp-web.js";
-const { Client, LocalAuth } = pkg;
+import type { Client as WWebClient, Message, Contact } from "whatsapp-web.js";
+const { Client, LocalAuth, MessageMedia } = pkg;
 import QRCode from "qrcode";
 import { rmSync } from "node:fs";
-import { BaseMessagingProvider, type ConnectionStatus } from "./messaging-provider.js";
-import { whatsappJidToPhone } from "@nexodesk/shared";
+import { BaseMessagingProvider, type ConnectionStatus, type SendResult, type SendMediaInput } from "./messaging-provider.js";
+
+/**
+ * WhatsApp addresses some contacts (mostly business/community-linked accounts) by an
+ * opaque "LID" instead of their real phone number — `message.from` looks like
+ * "123456789@lid" instead of "5551999998888@c.us". `contact.number` sometimes still
+ * resolves the real number; when it doesn't (or resolves to the same LID digits), we
+ * fall back to the full LID JID so normalizePhone() can tag it as non-phone instead of
+ * fabricating a fake "+55..." number out of an internal id.
+ */
+function resolveFromPhone(from: string, contact: Contact | undefined): string {
+  if (!from.endsWith("@lid")) return from.split("@")[0] ?? from;
+
+  const lidDigits = from.replace("@lid", "");
+  const candidateNumber = contact?.number?.replace(/\D/g, "");
+  if (candidateNumber && candidateNumber !== lidDigits && candidateNumber.length >= 8) {
+    return candidateNumber;
+  }
+  return from; // keeps the "@lid" suffix so normalizePhone() recognizes it
+}
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BASE_DELAY_MS = 3000;
@@ -78,7 +96,11 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     });
 
     this.client.on("message", async (message: Message) => {
+      // Groups (@g.us), broadcast lists (@broadcast) and status updates are out of
+      // scope for a 1:1 sales/support inbox — without this filter, a group's JID gets
+      // misread as a "phone number" and pollutes the contact list with garbage entries.
       if (message.isStatus || message.fromMe) return;
+      if (message.from.endsWith("@g.us") || message.from.endsWith("@broadcast")) return;
 
       const contact = await message.getContact().catch(() => undefined);
       const media = message.hasMedia ? await message.downloadMedia().catch(() => undefined) : undefined;
@@ -86,11 +108,11 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
       this.emit("message", {
         externalMessageId: message.id._serialized,
         externalChatId: message.from,
-        fromPhone: whatsappJidToPhone(message.from),
+        fromPhone: resolveFromPhone(message.from, contact),
         fromName: contact?.pushname ?? contact?.name,
         avatarUrl: await contact?.getProfilePicUrl().catch(() => undefined),
         body: message.body,
-        mediaUrl: media ? `data:${media.mimetype};base64,${media.data}` : undefined,
+        media: media ? { base64: media.data, mimeType: media.mimetype, fileName: media.filename ?? undefined } : undefined,
         type: (WHATSAPP_MESSAGE_TYPE_MAP[message.type] ?? "texto") as never,
         timestamp: new Date(message.timestamp * 1000),
       });
@@ -155,15 +177,32 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     this.setStatus({ status: "desconectado" });
   }
 
-  async sendMessage(recipient: string, message: string): Promise<void> {
+  private async throttle() {
     // Simple client-side rate limit — spread outbound sends to avoid triggering WhatsApp's abuse detection (spec §6).
     const elapsed = Date.now() - this.lastSentAt;
     if (elapsed < this.minSendIntervalMs) {
       await new Promise((resolve) => setTimeout(resolve, this.minSendIntervalMs - elapsed));
     }
-    const chatId = recipient.includes("@") ? recipient : `${recipient.replace(/\D/g, "")}@c.us`;
-    await this.client.sendMessage(chatId, message);
+  }
+
+  private toChatId(recipient: string): string {
+    if (recipient.startsWith("lid:")) return `${recipient.slice(4)}@lid`;
+    return recipient.includes("@") ? recipient : `${recipient.replace(/\D/g, "")}@c.us`;
+  }
+
+  async sendMessage(recipient: string, message: string): Promise<SendResult> {
+    await this.throttle();
+    const sent = await this.client.sendMessage(this.toChatId(recipient), message);
     this.lastSentAt = Date.now();
+    return { externalId: sent.id._serialized };
+  }
+
+  async sendMedia(recipient: string, media: SendMediaInput): Promise<SendResult> {
+    await this.throttle();
+    const messageMedia = new MessageMedia(media.mimeType, media.base64, media.fileName);
+    const sent = await this.client.sendMessage(this.toChatId(recipient), messageMedia, { caption: media.caption });
+    this.lastSentAt = Date.now();
+    return { externalId: sent.id._serialized };
   }
 
   async getConnectionStatus(): Promise<ConnectionStatus> {

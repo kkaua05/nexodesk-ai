@@ -57,6 +57,7 @@ export const messages = sqliteTable(
     type: text("type", { enum: MESSAGE_TYPE }).notNull().default("texto"),
     body: text("body"),
     mediaUrl: text("media_url"),
+    mediaFileName: text("media_file_name"),
     status: text("status", { enum: MESSAGE_STATUS }).notNull().default("enviado"),
     sentByUserId: text("sent_by_user_id"),
     failureReason: text("failure_reason"),

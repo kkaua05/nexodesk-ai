@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api-client";
+import { api, ApiError } from "@/lib/api-client";
 import { useSocketEvent } from "@/lib/socket";
+import { useAuthStore } from "@/stores/auth-store";
 
 export interface Contact {
   id: string;
@@ -27,6 +28,7 @@ export interface Message {
   type: string;
   body: string | null;
   mediaUrl: string | null;
+  mediaFileName: string | null;
   status: "enviando" | "enviado" | "entregue" | "lido" | "falhou";
   createdAt: string;
 }
@@ -86,5 +88,50 @@ export function useMarkConversationRead() {
 export function useAiSuggestion(conversationId: string | undefined) {
   return useMutation({
     mutationFn: () => api.get<{ reply: string | null }>(`/conversations/${conversationId}/ai-suggestion`),
+  });
+}
+
+export function useSendMedia(conversationId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, caption }: { file: File; caption?: string }) => {
+      const token = useAuthStore.getState().token;
+      const formData = new FormData();
+      formData.append("file", file);
+      if (caption) formData.append("caption", caption);
+
+      const response = await fetch(`/api/conversations/${conversationId}/media`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new ApiError(body?.error?.code ?? "UPLOAD_FAILED", body?.error?.message ?? "Falha ao enviar arquivo", response.status);
+      }
+      return response.json() as Promise<Message>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
+
+export function mediaUrl(messageId: string) {
+  return `/api/conversations/messages/${messageId}/media`;
+}
+
+export interface StartConversationInput {
+  phone: string;
+  name?: string;
+  message?: string;
+}
+
+export function useStartConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: StartConversationInput) => api.post<Conversation>("/conversations", input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["conversations"] }),
   });
 }

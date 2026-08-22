@@ -3,8 +3,9 @@ import { toast } from "sonner";
 import { File as FileIcon, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useAttachments, useUploadAttachment, useDeleteAttachment, attachmentDownloadUrl } from "@/hooks/use-attachments";
+import { useAttachments, useUploadAttachment, useDeleteAttachment } from "@/hooks/use-attachments";
 import { ApiError } from "@/lib/api-client";
+import { downloadFromApi } from "@/lib/download";
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -43,11 +44,14 @@ export function FilesPanel({ entityType, entityId }: { entityType: string; entit
         {(!files || files.length === 0) && <p className="text-sm text-muted-foreground">Nenhum arquivo ainda.</p>}
         {files?.map((file) => (
           <div key={file.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 p-3 text-sm">
-            <a href={attachmentDownloadUrl(file.id)} className="flex items-center gap-2 hover:underline" download>
+            <button
+              onClick={() => downloadFromApi(`/attachments/${file.id}/download`, file.fileName).catch(() => toast.error("Não foi possível baixar o arquivo"))}
+              className="flex min-w-0 items-center gap-2 hover:underline"
+            >
               <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="truncate">{file.fileName}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{formatSize(file.sizeBytes)}</span>
-            </a>
+            </button>
             <ConfirmDialog
               title="Excluir arquivo?"
               description={`"${file.fileName}" será removido permanentemente.`}

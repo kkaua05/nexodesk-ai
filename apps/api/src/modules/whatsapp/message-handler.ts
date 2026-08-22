@@ -7,6 +7,7 @@ import { analyzeConversation, extractLeadData } from "../ai/ai.service.js";
 import { createNotification } from "../notifications/notifications.service.js";
 import { emitEvent } from "../../shared/realtime.js";
 import { SOCKET_EVENTS } from "@nexodesk/shared";
+import { saveMediaBase64 } from "../../shared/media-storage.js";
 
 /**
  * Central inbound flow (spec §1 / §88):
@@ -41,13 +42,16 @@ async function handleIncomingMessage(event: IncomingMessageEvent) {
 
   const conversation = findOrCreateConversation(contact.id, event.externalChatId);
 
+  const mediaPath = event.media ? saveMediaBase64(event.media.base64, event.media.mimeType, event.media.fileName) : undefined;
+
   const { message, isNew: isNewMessage } = appendMessage({
     conversationId: conversation.id,
     externalId: event.externalMessageId,
     direction: "inbound",
     type: event.type,
     body: event.body,
-    mediaUrl: event.mediaUrl,
+    mediaUrl: mediaPath,
+    mediaFileName: event.media?.fileName,
     status: "lido",
   });
 

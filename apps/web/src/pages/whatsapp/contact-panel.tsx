@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NotesPanel } from "@/components/notes/notes-panel";
-import { initials, formatCents } from "@/lib/format";
+import { initials, formatCents, formatPhoneOrIdentifier } from "@/lib/format";
 import type { Conversation } from "@/hooks/use-conversations";
 import { useLeads } from "@/hooks/use-leads";
 import { CloseSaleDialog } from "@/components/sales/close-sale-dialog";
@@ -39,7 +39,7 @@ export function ContactPanel({ conversation }: { conversation: Conversation }) {
         </Avatar>
         <div>
           <p className="font-semibold">{conversation.contact?.name ?? "Sem nome"}</p>
-          <p className="text-xs text-muted-foreground">{conversation.contact?.phoneNormalized}</p>
+          <p className="text-xs text-muted-foreground">{formatPhoneOrIdentifier(conversation.contact?.phoneNormalized)}</p>
         </div>
       </div>
 

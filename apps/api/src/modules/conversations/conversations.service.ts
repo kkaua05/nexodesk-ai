@@ -22,6 +22,7 @@ export interface AppendMessageInput {
   type?: MessageType;
   body?: string;
   mediaUrl?: string;
+  mediaFileName?: string;
   status?: MessageStatus;
   sentByUserId?: string;
 }
@@ -43,6 +44,7 @@ export function appendMessage(input: AppendMessageInput) {
       type: input.type ?? "texto",
       body: input.body,
       mediaUrl: input.mediaUrl,
+      mediaFileName: input.mediaFileName,
       status: input.status ?? (input.direction === "inbound" ? "lido" : "enviado"),
       sentByUserId: input.sentByUserId,
     })

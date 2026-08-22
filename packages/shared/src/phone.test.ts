@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizePhone, whatsappJidToPhone } from "./phone";
+import { normalizePhone, whatsappJidToPhone, isLidIdentifier } from "./phone";
 
 describe("normalizePhone", () => {
   it("normalizes a BR number without country code to E.164", () => {
@@ -37,5 +37,23 @@ describe("normalizePhone", () => {
 describe("whatsappJidToPhone", () => {
   it("extracts the phone segment from a WhatsApp JID", () => {
     expect(whatsappJidToPhone("5551999990001@c.us")).toBe("5551999990001");
+  });
+});
+
+describe("LID identifiers (WhatsApp privacy ids)", () => {
+  it("tags an @lid JID instead of fabricating a fake E.164 number", () => {
+    const result = normalizePhone("214142959018197@lid");
+    expect(result.normalized).toBe("lid:214142959018197");
+    expect(result.isValid).toBe(false);
+  });
+
+  it("recognizes both the raw JID and the already-tagged form", () => {
+    expect(isLidIdentifier("214142959018197@lid")).toBe(true);
+    expect(isLidIdentifier("lid:214142959018197")).toBe(true);
+    expect(isLidIdentifier("+5551999990001")).toBe(false);
+  });
+
+  it("never confuses a real BR number for a LID", () => {
+    expect(isLidIdentifier("5551999990001@c.us")).toBe(false);
   });
 });

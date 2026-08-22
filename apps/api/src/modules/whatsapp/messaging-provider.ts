@@ -9,6 +9,12 @@ export interface ConnectionStatus {
   lastError?: string;
 }
 
+export interface IncomingMedia {
+  base64: string;
+  mimeType: string;
+  fileName?: string;
+}
+
 export interface IncomingMessageEvent {
   externalMessageId: string;
   externalChatId: string;
@@ -16,7 +22,7 @@ export interface IncomingMessageEvent {
   fromName?: string;
   avatarUrl?: string;
   body?: string;
-  mediaUrl?: string;
+  media?: IncomingMedia;
   type: "texto" | "imagem" | "audio" | "video" | "documento" | "sticker" | "localizacao";
   timestamp: Date;
 }
@@ -27,6 +33,17 @@ export interface MessageAckEvent {
   failureReason?: string;
 }
 
+export interface SendResult {
+  externalId: string;
+}
+
+export interface SendMediaInput {
+  base64: string;
+  mimeType: string;
+  fileName: string;
+  caption?: string;
+}
+
 /**
  * Abstraction the rest of the app depends on (spec §5) — CRM/business logic never
  * imports whatsapp-web.js directly. Swapping to WhatsAppCloudProvider later means
@@ -35,7 +52,8 @@ export interface MessageAckEvent {
 export interface MessagingProvider {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
-  sendMessage(recipient: string, message: string): Promise<void>;
+  sendMessage(recipient: string, message: string): Promise<SendResult>;
+  sendMedia(recipient: string, media: SendMediaInput): Promise<SendResult>;
   getConnectionStatus(): Promise<ConnectionStatus>;
   clearSession(): Promise<void>;
 
@@ -48,7 +66,8 @@ export interface MessagingProvider {
 export abstract class BaseMessagingProvider extends EventEmitter implements MessagingProvider {
   abstract connect(): Promise<void>;
   abstract disconnect(): Promise<void>;
-  abstract sendMessage(recipient: string, message: string): Promise<void>;
+  abstract sendMessage(recipient: string, message: string): Promise<SendResult>;
+  abstract sendMedia(recipient: string, media: SendMediaInput): Promise<SendResult>;
   abstract getConnectionStatus(): Promise<ConnectionStatus>;
   abstract clearSession(): Promise<void>;
 }

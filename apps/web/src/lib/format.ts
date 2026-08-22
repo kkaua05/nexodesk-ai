@@ -36,3 +36,14 @@ export function initials(name: string | null | undefined): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase();
 }
+
+/**
+ * Some WhatsApp contacts (business/community-linked accounts) are addressed by an
+ * opaque privacy id instead of a real phone number — shows a clear label instead of
+ * a confusing "lid:214142959018197" string.
+ */
+export function formatPhoneOrIdentifier(phoneNormalized: string | null | undefined): string {
+  if (!phoneNormalized) return "—";
+  if (phoneNormalized.startsWith("lid:")) return "Identificador privado do WhatsApp";
+  return phoneNormalized;
+}

@@ -1,13 +1,26 @@
-import { useMemo, useState } from "react";
-import { Send, Sparkles, Search, CircleCheck, CircleX, Clock } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Send, Sparkles, Search, CircleCheck, CircleX, Clock, Paperclip } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { formatRelative, formatDate, formatTime, initials } from "@/lib/format";
-import { useConversations, useMessages, useSendMessage, useMarkConversationRead, useAiSuggestion, type Conversation } from "@/hooks/use-conversations";
+import { formatRelative, formatDate, formatTime, initials, formatPhoneOrIdentifier } from "@/lib/format";
+import {
+  useConversations,
+  useMessages,
+  useSendMessage,
+  useSendMedia,
+  useMarkConversationRead,
+  useAiSuggestion,
+  type Conversation,
+  type Message,
+} from "@/hooks/use-conversations";
 import { ContactPanel } from "@/pages/whatsapp/contact-panel";
+import { NewConversationDialog } from "@/pages/whatsapp/new-conversation-dialog";
+import { MediaMessage } from "@/components/whatsapp/media-message";
+import { ApiError } from "@/lib/api-client";
 
 const FILTERS = [
   { key: "todas", label: "Todas" },
@@ -59,6 +72,7 @@ export function WhatsappInboxPage() {
               </button>
             ))}
           </div>
+          <NewConversationDialog onCreated={setSelectedId} />
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -118,9 +132,11 @@ function ConversationListItem({ conversation, active, onClick }: { conversation:
 function ChatPanel({ conversation }: { conversation: Conversation }) {
   const { data: messages } = useMessages(conversation.id);
   const sendMessage = useSendMessage(conversation.id);
+  const sendMedia = useSendMedia(conversation.id);
   const markRead = useMarkConversationRead();
   const suggestion = useAiSuggestion(conversation.id);
   const [draft, setDraft] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useMemo(() => {
     if (conversation.unreadCount > 0) markRead.mutate(conversation.id);
@@ -133,6 +149,18 @@ function ChatPanel({ conversation }: { conversation: Conversation }) {
     setDraft("");
   }
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await sendMedia.mutateAsync({ file });
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Não foi possível enviar o arquivo");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   let lastDate = "";
 
   return (
@@ -143,8 +171,8 @@ function ChatPanel({ conversation }: { conversation: Conversation }) {
           <AvatarFallback>{initials(conversation.contact?.name)}</AvatarFallback>
         </Avatar>
         <div>
-          <p className="text-sm font-semibold">{conversation.contact?.name ?? conversation.contact?.phoneNormalized}</p>
-          <p className="text-xs text-muted-foreground">{conversation.contact?.phoneNormalized}</p>
+          <p className="text-sm font-semibold">{conversation.contact?.name ?? formatPhoneOrIdentifier(conversation.contact?.phoneNormalized)}</p>
+          <p className="text-xs text-muted-foreground">{formatPhoneOrIdentifier(conversation.contact?.phoneNormalized)}</p>
         </div>
       </div>
 
@@ -167,7 +195,7 @@ function ChatPanel({ conversation }: { conversation: Conversation }) {
                     message.direction === "outbound" ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm bg-muted text-foreground",
                   )}
                 >
-                  {message.body ?? `[${message.type}]`}
+                  <MessageContent message={message} />
                   <div className={cn("mt-1 flex items-center justify-end gap-1 text-[10px]", message.direction === "outbound" ? "text-primary-foreground/70" : "text-muted-foreground")}>
                     {formatTime(message.createdAt)}
                     {message.direction === "outbound" && <MessageStatusIcon status={message.status} />}
@@ -191,6 +219,10 @@ function ChatPanel({ conversation }: { conversation: Conversation }) {
           </button>
         )}
         <div className="flex items-end gap-2">
+          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+          <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} disabled={sendMedia.isPending} title="Enviar arquivo">
+            <Paperclip className="h-4 w-4" />
+          </Button>
           <Textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -213,6 +245,18 @@ function ChatPanel({ conversation }: { conversation: Conversation }) {
       </div>
     </>
   );
+}
+
+function MessageContent({ message }: { message: Message }) {
+  if (message.mediaUrl) {
+    return (
+      <div className="space-y-1">
+        <MediaMessage messageId={message.id} type={message.type} fileName={message.mediaFileName ?? undefined} outbound={message.direction === "outbound"} />
+        {message.body && message.type !== "documento" && <p>{message.body}</p>}
+      </div>
+    );
+  }
+  return <>{message.body ?? `[${message.type}]`}</>;
 }
 
 function MessageStatusIcon({ status }: { status: string }) {
