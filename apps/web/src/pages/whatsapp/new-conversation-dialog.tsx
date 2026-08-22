@@ -24,7 +24,11 @@ export function NewConversationDialog({ onCreated }: { onCreated?: (conversation
     }
     try {
       const conversation = await startConversation.mutateAsync({ phone: phone.trim(), name: name.trim() || undefined, message: message.trim() || undefined });
-      toast.success("Contato adicionado");
+      if (conversation.messageError) {
+        toast.warning("Contato adicionado, mas a mensagem não foi enviada", { description: conversation.messageError });
+      } else {
+        toast.success("Contato adicionado");
+      }
       setOpen(false);
       setPhone("");
       setName("");

@@ -10,6 +10,7 @@ import { sendWhatsappMessage, sendWhatsappMedia } from "../whatsapp/whatsapp.ser
 import { findOrCreateContact } from "../contacts/contacts.service.js";
 import { suggestReply } from "../ai/ai.service.js";
 import { saveMediaBase64, mediaFilePath } from "../../shared/media-storage.js";
+import { translateWhatsappSendError } from "../whatsapp/send-error.js";
 
 const sendSchema = z.object({ body: z.string().min(1) });
 
@@ -44,20 +45,28 @@ export async function conversationsRoutes(app: FastifyInstance) {
     const { contact } = findOrCreateContact({ phone, name, firstMessageAt: new Date() });
     const conversation = findOrCreateConversation(contact.id, `${contact.phoneNormalized.replace("+", "")}@c.us`);
 
+    // The contact/conversation are the primary outcome of "adicionar contato" — a
+    // failed first message (e.g. an invalid/unregistered number) must not undo that
+    // or blow up the whole request; report it back alongside the created contact.
+    let messageError: string | undefined;
     if (message) {
-      const { externalId } = await sendWhatsappMessage(contact.phoneNormalized, message);
-      appendMessage({
-        conversationId: conversation.id,
-        externalId,
-        direction: "outbound",
-        type: "texto",
-        body: message,
-        status: "enviado",
-        sentByUserId: request.user.sub,
-      });
+      try {
+        const { externalId } = await sendWhatsappMessage(contact.phoneNormalized, message);
+        appendMessage({
+          conversationId: conversation.id,
+          externalId,
+          direction: "outbound",
+          type: "texto",
+          body: message,
+          status: "enviado",
+          sentByUserId: request.user.sub,
+        });
+      } catch (error) {
+        messageError = translateWhatsappSendError(error);
+      }
     }
 
-    return reply.status(201).send({ ...conversation, contact });
+    return reply.status(201).send({ ...conversation, contact, messageError });
   });
 
   app.get("/conversations/:id/messages", async (request) => {
@@ -82,7 +91,7 @@ export async function conversationsRoutes(app: FastifyInstance) {
 
     // Real WhatsApp id up front lets message_ack (delivered/read receipts) match this row later.
     const { externalId } = await sendWhatsappMessage(contact.phoneNormalized, body).catch((error) => {
-      throw new ValidationError(`Não foi possível enviar a mensagem: ${(error as Error).message}`);
+      throw new ValidationError(translateWhatsappSendError(error));
     });
 
     const { message } = appendMessage({
@@ -120,7 +129,7 @@ export async function conversationsRoutes(app: FastifyInstance) {
       fileName: file.filename,
       caption,
     }).catch((error) => {
-      throw new ValidationError(`Não foi possível enviar o arquivo: ${(error as Error).message}`);
+      throw new ValidationError(translateWhatsappSendError(error));
     });
 
     const mediaPath = saveMediaBase64(base64, file.mimetype, file.filename);

@@ -18,6 +18,8 @@ export interface Conversation {
   lastMessagePreview: string | null;
   lastMessageAt: string | null;
   contact?: Contact;
+  /** Only present right after POST /conversations, if the optional first message failed to send. */
+  messageError?: string;
 }
 
 export interface Message {
