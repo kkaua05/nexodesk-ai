@@ -185,22 +185,35 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     }
   }
 
-  private toChatId(recipient: string): string {
-    if (recipient.startsWith("lid:")) return `${recipient.slice(4)}@lid`;
+  /**
+   * `client.sendMessage()` can't target a raw "@lid" chat id directly — WhatsApp Web's
+   * own internal code throws trying to resolve it ("Cannot read properties of
+   * undefined (reading 'id')"). `getContactLidAndPhone` resolves the LID to the
+   * contact's real phone JID, which sendMessage does accept.
+   */
+  private async resolveChatId(recipient: string): Promise<string> {
+    if (recipient.startsWith("lid:")) {
+      const lidJid = `${recipient.slice(4)}@lid`;
+      const [resolved] = await this.client.getContactLidAndPhone([lidJid]).catch(() => [undefined]);
+      if (resolved?.pn) return resolved.pn;
+      throw new Error("Não foi possível encontrar o número de telefone deste contato para enviar a mensagem.");
+    }
     return recipient.includes("@") ? recipient : `${recipient.replace(/\D/g, "")}@c.us`;
   }
 
   async sendMessage(recipient: string, message: string): Promise<SendResult> {
     await this.throttle();
-    const sent = await this.client.sendMessage(this.toChatId(recipient), message);
+    const chatId = await this.resolveChatId(recipient);
+    const sent = await this.client.sendMessage(chatId, message);
     this.lastSentAt = Date.now();
     return { externalId: sent.id._serialized };
   }
 
   async sendMedia(recipient: string, media: SendMediaInput): Promise<SendResult> {
     await this.throttle();
+    const chatId = await this.resolveChatId(recipient);
     const messageMedia = new MessageMedia(media.mimeType, media.base64, media.fileName);
-    const sent = await this.client.sendMessage(this.toChatId(recipient), messageMedia, { caption: media.caption });
+    const sent = await this.client.sendMessage(chatId, messageMedia, { caption: media.caption });
     this.lastSentAt = Date.now();
     return { externalId: sent.id._serialized };
   }
