@@ -143,10 +143,16 @@ function ChatPanel({ conversation }: { conversation: Conversation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
 
-  function handleSend() {
-    if (!draft.trim()) return;
-    sendMessage.mutate(draft.trim());
+  async function handleSend() {
+    const text = draft.trim();
+    if (!text) return;
     setDraft("");
+    try {
+      await sendMessage.mutateAsync(text);
+    } catch (error) {
+      setDraft(text); // give the message back so nothing typed is lost
+      toast.error(error instanceof ApiError ? error.message : "Não foi possível enviar a mensagem");
+    }
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
