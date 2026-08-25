@@ -14,7 +14,7 @@ const envSchema = z.object({
   OLLAMA_MODEL: z.string().default("qwen2.5"),
   OLLAMA_TIMEOUT_MS: z.coerce.number().default(15000),
   GROQ_API_KEY: z.string().default(""),
-  GROQ_MODEL: z.string().default("llama-3.3-70b-versatile"),
+  GROQ_MODEL: z.string().default("openai/gpt-oss-120b"),
   GROQ_TIMEOUT_MS: z.coerce.number().default(15000),
   WHATSAPP_SESSION_PATH: z.string().default("./sessions"),
   DEMO_MODE: z.coerce.boolean().default(false),
