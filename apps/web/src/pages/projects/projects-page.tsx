@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { formatCents, formatDate } from "@/lib/format";
 import { useProjects } from "@/hooks/use-projects";
 import type { ProjectStatus } from "@nexodesk/shared";
+import { CreateProjectDialog } from "./create-project-dialog";
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
   planejamento: "Planejamento",
@@ -23,9 +24,12 @@ export function ProjectsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Projetos</h1>
-        <p className="text-sm text-muted-foreground">Projetos criados automaticamente a partir de vendas fechadas.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Projetos</h1>
+          <p className="text-sm text-muted-foreground">Projetos cadastrados manualmente ou criados automaticamente a partir de vendas fechadas.</p>
+        </div>
+        <CreateProjectDialog />
       </div>
 
       {isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}

@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatCents, formatDate, initials } from "@/lib/format";
 import { useCustomers } from "@/hooks/use-customers";
+import { CreateCustomerDialog } from "./create-customer-dialog";
 
 export function CustomersPage() {
   const { data: customers, isLoading } = useCustomers();
@@ -19,9 +20,12 @@ export function CustomersPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
-        <p className="text-sm text-muted-foreground">Clientes convertidos a partir de leads ganhos.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
+          <p className="text-sm text-muted-foreground">Clientes cadastrados manualmente ou convertidos a partir de leads ganhos.</p>
+        </div>
+        <CreateCustomerDialog />
       </div>
 
       <div className="relative w-full max-w-xs">
@@ -31,7 +35,7 @@ export function CustomersPage() {
 
       {isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
       {!isLoading && filtered.length === 0 && (
-        <p className="text-sm text-muted-foreground">Nenhum cliente ainda. Quando uma venda for fechada, o cliente aparecerá aqui.</p>
+        <p className="text-sm text-muted-foreground">Nenhum cliente ainda. Cadastre um cliente ou feche uma venda para vê-lo aqui.</p>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,14 +1,31 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
-import { listCustomers, getCustomerById, getCustomerFinancialSummary, getCustomerTimeline } from "./customers.service.js";
+import { listCustomers, getCustomerById, getCustomerFinancialSummary, getCustomerTimeline, createCustomer } from "./customers.service.js";
+
+const createCustomerSchema = z.object({
+  name: z.string().min(2),
+  phone: z.string().min(8),
+  email: z.string().email().optional(),
+  company: z.string().optional(),
+  document: z.string().optional(),
+  address: z.string().optional(),
+  notes: z.string().optional(),
+});
 
 export async function customersRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
   app.get("/customers", async () => {
     return listCustomers().map((c) => ({ ...c, financial: getCustomerFinancialSummary(c.id) }));
+  });
+
+  app.post("/customers", async (request, reply) => {
+    const body = createCustomerSchema.parse(request.body);
+    const customer = createCustomer(body);
+    return reply.status(201).send(customer);
   });
 
   app.get("/customers/:id", async (request) => {

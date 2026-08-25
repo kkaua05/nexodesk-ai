@@ -1,7 +1,52 @@
 import { eq, desc } from "drizzle-orm";
 import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
-import { NotFoundError } from "@nexodesk/shared";
+import { NotFoundError, ConflictError } from "@nexodesk/shared";
+import { findOrCreateContact } from "../contacts/contacts.service.js";
+
+export interface CreateCustomerInput {
+  name: string;
+  phone: string;
+  email?: string;
+  company?: string;
+  document?: string;
+  address?: string;
+  notes?: string;
+}
+
+/**
+ * Manual "novo cliente" entry point — customers are otherwise only ever created
+ * automatically when a sale closes (see sales.service.ts's closeSale). Reuses the same
+ * phone-dedup contact lookup as the WhatsApp flow so a manually added customer and one
+ * that later writes in on WhatsApp resolve to the same contact instead of splitting.
+ */
+export function createCustomer(input: CreateCustomerInput) {
+  const { contact } = findOrCreateContact({ name: input.name, phone: input.phone, firstMessageAt: new Date() });
+
+  const existing = db.select().from(schema.customers).where(eq(schema.customers.contactId, contact.id)).get();
+  if (existing) {
+    throw new ConflictError("CUSTOMER_ALREADY_EXISTS", `Já existe um cliente cadastrado com esse telefone: ${existing.name}`);
+  }
+
+  const customer = db
+    .insert(schema.customers)
+    .values({
+      contactId: contact.id,
+      name: input.name,
+      email: input.email,
+      company: input.company,
+      document: input.document,
+      address: input.address,
+      notes: input.notes,
+      customerSince: new Date(),
+    })
+    .returning()
+    .get();
+
+  addTimelineEvent({ customerId: customer.id, type: "customer_created", title: "Cliente cadastrado manualmente" });
+
+  return customer;
+}
 
 export function listCustomers() {
   return db.select().from(schema.customers).orderBy(desc(schema.customers.createdAt)).all();

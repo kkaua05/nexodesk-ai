@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { Contact } from "@/hooks/use-conversations";
 
@@ -31,6 +31,24 @@ export interface TimelineEvent {
 
 export function useCustomers() {
   return useQuery({ queryKey: ["customers"], queryFn: () => api.get<Customer[]>("/customers") });
+}
+
+export interface CreateCustomerInput {
+  name: string;
+  phone: string;
+  email?: string;
+  company?: string;
+  document?: string;
+  address?: string;
+  notes?: string;
+}
+
+export function useCreateCustomer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateCustomerInput) => api.post<Customer>("/customers", input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customers"] }),
+  });
 }
 
 export function useCustomer(id: string | undefined) {

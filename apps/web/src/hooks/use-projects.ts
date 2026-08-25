@@ -40,6 +40,24 @@ export function useProject(id: string | undefined) {
   return query;
 }
 
+export interface CreateProjectInput {
+  customerId: string;
+  name: string;
+  serviceId?: string;
+  description?: string;
+  valueCents?: number;
+  startDate?: string;
+  dueDate?: string;
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateProjectInput) => api.post<Project>("/projects", input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
+  });
+}
+
 export function useUpdateProjectStatus() {
   const queryClient = useQueryClient();
   return useMutation({

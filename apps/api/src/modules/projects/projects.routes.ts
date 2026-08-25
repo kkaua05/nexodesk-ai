@@ -5,14 +5,31 @@ import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
 import { NotFoundError, SOCKET_EVENTS, PROJECT_STATUS } from "@nexodesk/shared";
 import { emitEvent } from "../../shared/realtime.js";
+import { createProject } from "./projects.service.js";
 
 const statusSchema = z.object({ status: z.enum(PROJECT_STATUS) });
 const progressSchema = z.object({ progress: z.number().int().min(0).max(100) });
+
+const createProjectSchema = z.object({
+  customerId: z.string(),
+  name: z.string().min(2),
+  serviceId: z.string().optional(),
+  description: z.string().optional(),
+  valueCents: z.number().int().nonnegative().optional(),
+  startDate: z.coerce.date().optional(),
+  dueDate: z.coerce.date().optional(),
+});
 
 export async function projectsRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
   app.get("/projects", async () => db.select().from(schema.projects).all());
+
+  app.post("/projects", async (request, reply) => {
+    const body = createProjectSchema.parse(request.body);
+    const project = createProject({ ...body, responsibleUserId: request.user.sub });
+    return reply.status(201).send(project);
+  });
 
   app.get("/projects/:id", async (request) => {
     const { id } = request.params as { id: string };
