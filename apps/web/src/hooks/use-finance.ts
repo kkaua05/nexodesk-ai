@@ -14,6 +14,7 @@ export interface FinancialOverview {
 export interface Receivable {
   id: string;
   customerId: string;
+  projectId: string | null;
   description: string;
   amountCents: number;
   paidAmountCents: number;
@@ -46,6 +47,26 @@ export function useReceivables() {
 
 export function usePayables() {
   return useQuery({ queryKey: ["payables"], queryFn: () => api.get<Payable[]>("/finance/payables") });
+}
+
+export interface CreateReceivableInput {
+  customerId: string;
+  projectId?: string;
+  categoryId?: string;
+  description: string;
+  amountCents: number;
+  dueDate: string;
+}
+
+export function useCreateReceivable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateReceivableInput) => api.post<Receivable>("/finance/receivables", input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["receivables"] });
+      queryClient.invalidateQueries({ queryKey: ["finance-overview"] });
+    },
+  });
 }
 
 export function useRegisterReceivablePayment() {

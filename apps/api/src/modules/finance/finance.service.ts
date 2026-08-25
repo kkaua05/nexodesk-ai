@@ -1,8 +1,61 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
-import { NotFoundError, SOCKET_EVENTS, sumCents } from "@nexodesk/shared";
+import { NotFoundError, ValidationError, SOCKET_EVENTS, sumCents } from "@nexodesk/shared";
 import { emitEvent } from "../../shared/realtime.js";
+import { addTimelineEvent } from "../customers/customers.service.js";
+
+export interface CreateReceivableInput {
+  customerId: string;
+  projectId?: string;
+  categoryId?: string;
+  description: string;
+  amountCents: number;
+  dueDate: Date;
+}
+
+/**
+ * Manual "nova cobrança" entry point — receivables are otherwise only ever created
+ * automatically as sale installments inside sales.service.ts's closeSale(). Lets a
+ * customer's revenue be tracked accurately even when it didn't come from the sales
+ * pipeline (e.g. a project value entered after the fact, an extra charge).
+ */
+export function createReceivable(input: CreateReceivableInput) {
+  const customer = db.select().from(schema.customers).where(eq(schema.customers.id, input.customerId)).get();
+  if (!customer) throw new NotFoundError("Cliente");
+
+  if (input.projectId) {
+    const project = db.select().from(schema.projects).where(eq(schema.projects.id, input.projectId)).get();
+    if (!project) throw new NotFoundError("Projeto");
+    if (project.customerId !== input.customerId) {
+      throw new ValidationError("O projeto selecionado não pertence a este cliente");
+    }
+  }
+
+  if (input.categoryId) {
+    const category = db.select().from(schema.financialCategories).where(eq(schema.financialCategories.id, input.categoryId)).get();
+    if (!category) throw new NotFoundError("Categoria financeira");
+  }
+
+  const receivable = db
+    .insert(schema.accountsReceivable)
+    .values({
+      customerId: input.customerId,
+      projectId: input.projectId,
+      categoryId: input.categoryId,
+      description: input.description,
+      amountCents: input.amountCents,
+      dueDate: input.dueDate,
+      status: "pendente",
+    })
+    .returning()
+    .get();
+
+  addTimelineEvent({ customerId: input.customerId, type: "receivable_created", title: `Cobrança criada: ${input.description}`, valueCents: input.amountCents });
+  emitEvent(SOCKET_EVENTS.RECEIVABLE_UPDATED, { receivable });
+
+  return receivable;
+}
 
 export function registerReceivablePayment(receivableId: string, amountCents: number, method?: string) {
   const receivable = db.select().from(schema.accountsReceivable).where(eq(schema.accountsReceivable.id, receivableId)).get();

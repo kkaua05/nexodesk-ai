@@ -2,10 +2,18 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
-import { registerReceivablePayment, registerPayablePayment, getFinancialOverview } from "./finance.service.js";
+import { registerReceivablePayment, registerPayablePayment, getFinancialOverview, createReceivable } from "./finance.service.js";
 
 const paymentSchema = z.object({ amountCents: z.number().int().positive(), method: z.string().optional() });
 const payableSchema = z.object({
+  categoryId: z.string().optional(),
+  description: z.string().min(2),
+  amountCents: z.number().int().positive(),
+  dueDate: z.coerce.date(),
+});
+const receivableSchema = z.object({
+  customerId: z.string(),
+  projectId: z.string().optional(),
   categoryId: z.string().optional(),
   description: z.string().min(2),
   amountCents: z.number().int().positive(),
@@ -20,6 +28,12 @@ export async function financeRoutes(app: FastifyInstance) {
   app.get("/finance/receivables", async () => db.select().from(schema.accountsReceivable).all());
   app.get("/finance/payables", async () => db.select().from(schema.accountsPayable).all());
   app.get("/finance/categories", async () => db.select().from(schema.financialCategories).all());
+
+  app.post("/finance/receivables", { onRequest: [app.authenticate, app.requireRole("owner", "financeiro")] }, async (request, reply) => {
+    const body = receivableSchema.parse(request.body);
+    const receivable = createReceivable(body);
+    return reply.status(201).send(receivable);
+  });
 
   app.post("/finance/receivables/:id/pay", async (request) => {
     const { id } = request.params as { id: string };
