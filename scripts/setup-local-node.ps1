@@ -1,5 +1,5 @@
 # Downloads a pinned Node 22 LTS binary into .tools/, used only to run the API
-# (see apps/api/scripts/run-server.mjs) — works around a Node 24 + native-addon
+# (see apps/api/scripts/run-server.mjs) - works around a Node 24 + native-addon
 # (better-sqlite3, Puppeteer/whatsapp-web.js) crash on Windows. Does not touch any
 # system-wide Node installation.
 $ErrorActionPreference = "Stop"
@@ -35,5 +35,5 @@ if ($betterSqlite3Dir) {
   npx --yes node-gyp rebuild --target=$version --dist-url=https://nodejs.org/dist
   Pop-Location
 } else {
-  Write-Warning "better-sqlite3 nao encontrado em node_modules/.pnpm — rode 'pnpm install' primeiro."
+  Write-Warning "better-sqlite3 nao encontrado em node_modules/.pnpm - rode 'pnpm install' primeiro."
 }
