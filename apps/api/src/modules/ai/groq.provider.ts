@@ -2,11 +2,19 @@ import { z } from "zod";
 import {
   AIUnavailableError,
   type AIProvider,
+  type ChatMessage,
   type ConversationMessageForAI,
   type ConversationSummary,
   type ExtractedLeadData,
   type IntentClassification,
 } from "./ai-provider.js";
+
+const CHAT_SYSTEM_PROMPT =
+  "Você é o Nexo AI, assistente integrado ao NexoDesk (uma plataforma de CRM/gestão comercial). " +
+  "Converse de forma natural, útil e simpática em português do Brasil, sobre qualquer assunto que o usuário trouxer. " +
+  "Você não tem acesso direto aos dados do CRM do usuário nesta conversa — se ele perguntar algo sobre os leads, " +
+  "clientes ou financeiro dele, oriente-o a perguntar de forma direta (ex: \"quais leads precisam de follow-up?\") " +
+  "para que o sistema busque os dados reais, em vez de inventar números.";
 
 const intentSchema = z.object({
   intent: z.string(),
@@ -159,5 +167,46 @@ Conversa:
 ${renderConversation(messages)}`;
     const result = await this.runJsonPrompt(prompt, z.object({ reply: z.string() }));
     return result.reply;
+  }
+
+  async chat(message: string, history: ChatMessage[]): Promise<string> {
+    if (!this.apiKey) {
+      throw new AIUnavailableError("GROQ_API_KEY não configurada");
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    let response: Response;
+    try {
+      response = await fetch(`${GroqProvider.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.modelName,
+          messages: [{ role: "system", content: CHAT_SYSTEM_PROMPT }, ...history, { role: "user", content: message }],
+          temperature: 0.6,
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      throw new AIUnavailableError((error as Error).message);
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      throw new AIUnavailableError(`HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+      throw new AIUnavailableError("resposta do modelo veio vazia");
+    }
+    return content;
   }
 }

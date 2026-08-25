@@ -23,6 +23,11 @@ export interface ConversationSummary {
   nextStep: string | null;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 /**
  * All AI usage in the app goes through this interface (spec §34) — no Ollama calls
  * scattered around the codebase. Every method must be safe to call even when the
@@ -34,6 +39,8 @@ export interface AIProvider {
   extractLeadData(messages: ConversationMessageForAI[]): Promise<ExtractedLeadData>;
   summarizeConversation(messages: ConversationMessageForAI[]): Promise<ConversationSummary>;
   suggestReply(messages: ConversationMessageForAI[]): Promise<string>;
+  /** Free-form conversation (Nexo AI's "general_chat" route) — no JSON contract, just a text reply. */
+  chat(message: string, history: ChatMessage[]): Promise<string>;
   isAvailable(): Promise<boolean>;
 }
 

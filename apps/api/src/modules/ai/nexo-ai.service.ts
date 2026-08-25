@@ -4,6 +4,7 @@ import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
 import { formatCents } from "@nexodesk/shared";
 import { safeAI } from "./ai.service.js";
+import type { ChatMessage } from "./ai-provider.js";
 
 const QUERY_TOOLS = [
   "leads_needing_followup",
@@ -14,21 +15,28 @@ const QUERY_TOOLS = [
 ] as const;
 type QueryTool = (typeof QUERY_TOOLS)[number];
 
+/** Anything that isn't a direct CRM data query falls here — a normal, free-form AI reply. */
+const ALL_TOOLS = [...QUERY_TOOLS, "general_chat"] as const;
+type AskTool = (typeof ALL_TOOLS)[number];
+
 const routeSchema = z.object({
-  tool: z.enum(QUERY_TOOLS),
+  tool: z.enum(ALL_TOOLS),
   serviceKeyword: z.string().nullable().default(null),
 });
 
 /**
- * "Nexo AI" query console (spec §41-42). The model only ever picks WHICH pre-built,
- * safe query to run — it never generates SQL and never writes the final numbers
- * itself, so the answer can't hallucinate data that isn't in the database.
+ * "Nexo AI" query console (spec §41-42). For CRM data questions, the model only ever
+ * picks WHICH pre-built, safe query to run — it never generates SQL and never writes
+ * the final numbers itself, so the answer can't hallucinate data that isn't in the
+ * database. Anything else (small talk, general questions) routes to a normal free-form
+ * chat reply instead, so the assistant can actually hold a conversation.
  */
-export async function askNexoAI(question: string) {
+export async function askNexoAI(question: string, history: ChatMessage[] = []) {
   const route = await safeAI((p) =>
     p
       .classifyIntent(
-        `Escolha qual das seguintes consultas responde à pergunta do usuário: ${QUERY_TOOLS.join(", ")}.
+        `Escolha qual das seguintes opções melhor atende à pergunta do usuário: ${ALL_TOOLS.join(", ")}.
+Use "general_chat" quando a pergunta for uma conversa casual, saudação, dúvida geral, ou qualquer coisa que não seja uma consulta direta aos dados do CRM (leads, clientes, financeiro).
 Se a pergunta mencionar um serviço específico (ex: landing page), inclua em serviceKeyword.
 Pergunta: "${question}"
 Responda em JSON: {"tool": "...", "serviceKeyword": string|null}`,
@@ -37,18 +45,24 @@ Responda em JSON: {"tool": "...", "serviceKeyword": string|null}`,
   );
 
   const tool = route?.tool ?? guessToolFromKeywords(question);
-  const result = runTool(tool, route?.serviceKeyword ?? undefined);
 
+  if (tool === "general_chat") {
+    const reply = await safeAI((p) => p.chat(question, history));
+    return { tool, question, summary: reply ?? "Não consegui responder agora — tente novamente em instantes.", items: [] as never[] };
+  }
+
+  const result = runTool(tool, route?.serviceKeyword ?? undefined);
   return { tool, question, ...result };
 }
 
-function guessToolFromKeywords(question: string): QueryTool {
+function guessToolFromKeywords(question: string): AskTool {
   const q = question.toLowerCase();
   if (q.includes("receber") || q.includes("faturamento") || q.includes("recebimento")) return "receivables_this_month";
   if (q.includes("atrasad") || q.includes("vencid")) return "overdue_customers";
   if (q.includes("melhor") || q.includes("quente") || q.includes("score")) return "top_leads";
   if (q.includes("landing") || q.includes("site") || q.includes("sistema") || q.includes("ecommerce") || q.includes("e-commerce")) return "leads_by_service";
-  return "leads_needing_followup";
+  if (q.includes("follow") || q.includes("acompanhamento")) return "leads_needing_followup";
+  return "general_chat";
 }
 
 function runTool(tool: QueryTool, serviceKeyword?: string) {

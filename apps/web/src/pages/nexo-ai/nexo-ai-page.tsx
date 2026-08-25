@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, Send, RotateCcw, AlertCircle, Loader2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +11,35 @@ import { formatCents, formatDate } from "@/lib/format";
 import { api, ApiError } from "@/lib/api-client";
 import { useMutation } from "@tanstack/react-query";
 import { useAiSettingsProbe } from "@/hooks/use-ai-status";
+
+/** Compact markdown rendering tuned for a narrow chat bubble instead of a full article layout. */
+function AnswerMarkdown({ children }: { children: string }) {
+  return (
+    <div className="space-y-2 text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ ...props }) => <p className="my-1.5" {...props} />,
+          strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
+          ul: ({ ...props }) => <ul className="my-1.5 list-disc space-y-0.5 pl-4" {...props} />,
+          ol: ({ ...props }) => <ol className="my-1.5 list-decimal space-y-0.5 pl-4" {...props} />,
+          a: ({ ...props }) => <a className="text-primary underline underline-offset-2" target="_blank" rel="noreferrer" {...props} />,
+          code: ({ ...props }) => <code className="rounded bg-muted px-1 py-0.5 text-xs" {...props} />,
+          pre: ({ ...props }) => <pre className="my-1.5 overflow-x-auto rounded-md bg-muted p-2 text-xs" {...props} />,
+          table: ({ ...props }) => (
+            <div className="my-1.5 overflow-x-auto">
+              <table className="w-full border-collapse text-xs" {...props} />
+            </div>
+          ),
+          th: ({ ...props }) => <th className="border-b border-border/60 px-2 py-1 text-left font-medium" {...props} />,
+          td: ({ ...props }) => <td className="border-b border-border/40 px-2 py-1" {...props} />,
+        }}
+      >
+        {children}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 interface NexoAnswer {
   tool: string;
@@ -22,6 +53,11 @@ interface HistoryEntry {
   question: string;
   answer?: NexoAnswer;
   error?: string;
+}
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
 const SUGGESTIONS = [
@@ -38,7 +74,11 @@ const TOOL_LABEL: Record<string, string> = {
   leads_by_service: "Leads",
   overdue_customers: "Financeiro",
   top_leads: "Leads",
+  general_chat: "Conversa",
 };
+
+/** How many previous Q&A pairs to send as context so the AI actually remembers the conversation. */
+const HISTORY_WINDOW = 6;
 
 const STATUS_VARIANT: Record<string, "success" | "destructive" | "warning" | "secondary"> = {
   pago: "success",
@@ -129,11 +169,12 @@ export function NexoAiPage() {
   const aiStatus = useAiSettingsProbe();
 
   const ask = useMutation({
-    mutationFn: (entry: HistoryEntry) => api.post<NexoAnswer>("/ai/ask", { question: entry.question }),
-    onSuccess: (answer, entry) => {
+    mutationFn: ({ entry, chatHistory }: { entry: HistoryEntry; chatHistory: ChatMessage[] }) =>
+      api.post<NexoAnswer>("/ai/ask", { question: entry.question, history: chatHistory }),
+    onSuccess: (answer, { entry }) => {
       setHistory((h) => h.map((e) => (e.id === entry.id ? { ...e, answer } : e)));
     },
-    onError: (error, entry) => {
+    onError: (error, { entry }) => {
       const message = error instanceof ApiError ? error.message : "Não foi possível falar com a IA agora.";
       setHistory((h) => h.map((e) => (e.id === entry.id ? { ...e, error: message } : e)));
     },
@@ -143,20 +184,32 @@ export function NexoAiPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [history]);
 
+  function buildChatHistory(): ChatMessage[] {
+    return history
+      .filter((e): e is HistoryEntry & { answer: NexoAnswer } => Boolean(e.answer))
+      .slice(-HISTORY_WINDOW)
+      .flatMap((e) => [
+        { role: "user" as const, content: e.question },
+        { role: "assistant" as const, content: e.answer.summary },
+      ]);
+  }
+
   function handleAsk(raw: string) {
     const trimmed = raw.trim();
     if (trimmed.length < MIN_QUESTION_LENGTH || ask.isPending) return;
 
     const entry: HistoryEntry = { id: crypto.randomUUID(), question: trimmed };
+    const chatHistory = buildChatHistory();
     setHistory((h) => [...h, entry]);
     setQuestion("");
     inputRef.current?.focus();
-    ask.mutate(entry);
+    ask.mutate({ entry, chatHistory });
   }
 
   function retry(entry: HistoryEntry) {
+    const chatHistory = buildChatHistory();
     setHistory((h) => h.map((e) => (e.id === entry.id ? { ...e, error: undefined } : e)));
-    ask.mutate(entry);
+    ask.mutate({ entry, chatHistory });
   }
 
   const aiOnline = aiStatus.data?.available ?? false;
@@ -258,7 +311,7 @@ export function NexoAiPage() {
                         {TOOL_LABEL[entry.answer.tool] ?? "Resposta"}
                       </Badge>
                     </div>
-                    <p className="text-sm">{entry.answer.summary}</p>
+                    <AnswerMarkdown>{entry.answer.summary}</AnswerMarkdown>
                     {entry.answer.items.length > 0 && (
                       <div className="space-y-1.5">
                         {entry.answer.items.slice(0, 8).map((item, j) => (
