@@ -4,6 +4,7 @@ const { Client, LocalAuth, MessageMedia } = pkg;
 import QRCode from "qrcode";
 import { rmSync } from "node:fs";
 import { BaseMessagingProvider, type ConnectionStatus, type SendResult, type SendMediaInput } from "./messaging-provider.js";
+import { translateWhatsappSendError } from "./send-error.js";
 
 /**
  * WhatsApp addresses some contacts (mostly business/community-linked accounts) by an
@@ -162,8 +163,22 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   }
 
   async connect(): Promise<void> {
+    // Puppeteer's LocalAuth profile dir can only be opened by one browser at a time —
+    // calling client.initialize() again while a connection is already in flight (e.g.
+    // the boot-time auto-reconnect racing a manual "Conectar" click) throws "The
+    // browser is already running for <dir>" and leaves the client in a broken state.
+    // Re-entrant calls while already connecting/connected are just a no-op instead.
+    if (["conectando", "conectado", "reconectando", "qr_necessario"].includes(this.status.status)) {
+      return;
+    }
+
     this.setStatus({ status: "conectando" });
-    await this.client.initialize();
+    try {
+      await this.client.initialize();
+    } catch (error) {
+      this.setStatus({ status: "erro", lastError: translateWhatsappSendError(error) });
+      throw error;
+    }
   }
 
   async disconnect(): Promise<void> {

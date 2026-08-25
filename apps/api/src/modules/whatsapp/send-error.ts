@@ -16,6 +16,9 @@ export function translateWhatsappSendError(error: unknown): string {
   if (/Evaluation failed|Protocol error|Target closed/i.test(message)) {
     return "A conexão com o WhatsApp foi perdida. Reconecte em Configurações → Integrações e tente novamente.";
   }
+  if (/browser is already running|userDataDir/i.test(message)) {
+    return "Já existe uma conexão em andamento. Aguarde alguns segundos ou clique em \"Limpar sessão\" se o problema persistir.";
+  }
 
   return message;
 }

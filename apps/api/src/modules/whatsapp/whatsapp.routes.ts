@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { ValidationError } from "@nexodesk/shared";
 import {
   connectWhatsapp,
   disconnectWhatsapp,
@@ -8,6 +9,7 @@ import {
   getLastQrCode,
   sendWhatsappMessage,
 } from "./whatsapp.service.js";
+import { translateWhatsappSendError } from "./send-error.js";
 
 const sendMessageSchema = z.object({
   recipient: z.string().min(8),
@@ -23,7 +25,9 @@ export async function whatsappRoutes(app: FastifyInstance) {
   });
 
   app.post("/whatsapp/connect", async (_request, reply) => {
-    await connectWhatsapp();
+    await connectWhatsapp().catch((error) => {
+      throw new ValidationError(translateWhatsappSendError(error));
+    });
     return reply.status(202).send({ message: "Conexão iniciada" });
   });
 
