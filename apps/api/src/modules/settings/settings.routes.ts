@@ -3,7 +3,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
-import { aiProvider } from "../ai/ai.service.js";
+import { aiProvider, aiProviderName } from "../ai/ai.service.js";
 
 const companySchema = z.object({
   name: z.string().min(2),
@@ -42,7 +42,7 @@ export async function settingsRoutes(app: FastifyInstance) {
 
   app.get("/settings/ai", async () => {
     const available = await aiProvider.isAvailable();
-    return { ...(getSetting("ai") as object), model: aiProvider.modelName, status: available ? "online" : "offline" };
+    return { ...(getSetting("ai") as object), model: aiProvider.modelName, provider: aiProviderName, status: available ? "online" : "offline" };
   });
 
   app.get("/settings/ai/test", async () => {

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { askNexoAI } from "./nexo-ai.service.js";
-import { aiProvider } from "./ai.service.js";
+import { aiProvider, aiProviderName } from "./ai.service.js";
 
 const askSchema = z.object({ question: z.string().min(3) });
 
@@ -15,6 +15,6 @@ export async function aiRoutes(app: FastifyInstance) {
 
   app.get("/ai/status", async () => {
     const available = await aiProvider.isAvailable();
-    return { available, model: aiProvider.modelName };
+    return { available, model: aiProvider.modelName, provider: aiProviderName };
   });
 }

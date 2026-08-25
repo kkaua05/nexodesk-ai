@@ -81,9 +81,9 @@ export function OnboardingWizard() {
           {step === 3 && (
             <div className="space-y-2 text-sm">
               <p className="text-muted-foreground">
-                Ollama: <strong>{aiStatus.data?.available ? "online" : "offline"}</strong>
+                {aiStatus.data?.provider === "groq" ? "Groq" : "Ollama"}: <strong>{aiStatus.data?.available ? "online" : "offline"}</strong>
               </p>
-              <p className="text-muted-foreground">A IA é opcional — o sistema funciona normalmente mesmo sem o Ollama rodando.</p>
+              <p className="text-muted-foreground">A IA é opcional — o sistema funciona normalmente mesmo sem ela disponível.</p>
             </div>
           )}
 

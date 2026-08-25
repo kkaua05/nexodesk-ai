@@ -3,13 +3,23 @@ import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
 import { env } from "../../shared/env.js";
 import { OllamaProvider } from "./ollama.provider.js";
+import { GroqProvider } from "./groq.provider.js";
 import type { AIProvider, ConversationMessageForAI } from "./ai-provider.js";
 
-export const aiProvider: AIProvider = new OllamaProvider({
-  baseUrl: env.OLLAMA_URL,
-  model: env.OLLAMA_MODEL,
-  timeoutMs: env.OLLAMA_TIMEOUT_MS,
-});
+export const aiProviderName = env.AI_PROVIDER;
+
+export const aiProvider: AIProvider =
+  env.AI_PROVIDER === "groq"
+    ? new GroqProvider({
+        apiKey: env.GROQ_API_KEY,
+        model: env.GROQ_MODEL,
+        timeoutMs: env.GROQ_TIMEOUT_MS,
+      })
+    : new OllamaProvider({
+        baseUrl: env.OLLAMA_URL,
+        model: env.OLLAMA_MODEL,
+        timeoutMs: env.OLLAMA_TIMEOUT_MS,
+      });
 
 /**
  * The app must keep working with the AI offline (spec §35) — every call site uses

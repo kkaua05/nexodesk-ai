@@ -7,18 +7,25 @@ import { api } from "@/lib/api-client";
 
 interface AiSettings {
   model: string;
+  provider?: "ollama" | "groq";
   status: "online" | "offline";
   url?: string;
 }
 
+const PROVIDER_LABEL: Record<string, string> = {
+  ollama: "Ollama (local)",
+  groq: "Groq (nuvem)",
+};
+
 export function AiSettings() {
   const queryClient = useQueryClient();
   const { data, isFetching } = useQuery({ queryKey: ["settings-ai"], queryFn: () => api.get<AiSettings>("/settings/ai") });
+  const providerLabel = PROVIDER_LABEL[data?.provider ?? ""] ?? "IA";
 
   async function testConnection() {
     await queryClient.invalidateQueries({ queryKey: ["settings-ai"] });
     const result = await api.get<{ available: boolean }>("/settings/ai/test");
-    toast[result.available ? "success" : "error"](result.available ? "Ollama está online" : "Não foi possível conectar ao Ollama");
+    toast[result.available ? "success" : "error"](result.available ? `${providerLabel} está online` : `Não foi possível conectar ao ${providerLabel}`);
   }
 
   return (
@@ -27,7 +34,9 @@ export function AiSettings() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className={cn("h-2.5 w-2.5 rounded-full", data?.status === "online" ? "bg-success" : "bg-muted-foreground")} />
-            <span className="font-medium">Ollama — {isFetching ? "verificando..." : data?.status === "online" ? "Online" : "Offline"}</span>
+            <span className="font-medium">
+              {providerLabel} — {isFetching ? "verificando..." : data?.status === "online" ? "Online" : "Offline"}
+            </span>
           </div>
         </div>
 
@@ -39,8 +48,11 @@ export function AiSettings() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          A IA roda 100% local via Ollama. Se estiver offline, o sistema continua funcionando normalmente — apenas os recursos de IA (análise de
-          conversas, sugestões, Nexo AI) ficam indisponíveis temporariamente.
+          {data?.provider === "groq"
+            ? "A IA roda via Groq (nuvem, gratuito). As mensagens analisadas trafegam pela internet até a Groq."
+            : "A IA roda 100% local via Ollama."}{" "}
+          Se estiver offline, o sistema continua funcionando normalmente — apenas os recursos de IA (análise de conversas, sugestões, Nexo AI) ficam
+          indisponíveis temporariamente.
         </p>
 
         <Button size="sm" variant="outline" onClick={testConnection}>
