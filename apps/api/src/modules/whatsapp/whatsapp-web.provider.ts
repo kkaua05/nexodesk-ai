@@ -157,7 +157,8 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     if (message.from.endsWith("@g.us") || message.from.endsWith("@broadcast")) return undefined;
 
     const contact = await message.getContact().catch(() => undefined);
-    const media = message.hasMedia ? await message.downloadMedia().catch(() => undefined) : undefined;
+    const media = message.hasMedia ? await this.downloadMediaWithRetry(message) : undefined;
+    const mediaFailedToLoad = message.hasMedia && !media;
 
     // `message.id._serialized` occasionally comes back empty for messages that arrive
     // while the session is resyncing after a brief reconnect (a known instability of
@@ -175,11 +176,34 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
       fromPhone: resolveFromPhone(message.from, contact),
       fromName: contact?.pushname ?? contact?.name,
       avatarUrl: await contact?.getProfilePicUrl().catch(() => undefined),
-      body: message.body,
+      // A media message with no caption has body === "" (not null) — falling through to
+      // "[imagem]" only when the *download* itself failed (mediaFailedToLoad) keeps a
+      // normal captionless photo silent while still telling the user something arrived
+      // when we genuinely couldn't fetch it, instead of a bubble with nothing in it.
+      body: mediaFailedToLoad ? "[Não foi possível baixar esta mídia — peça para o cliente reenviar]" : message.body,
       media: media ? { base64: media.data, mimeType: media.mimetype, fileName: media.filename ?? undefined } : undefined,
       type: (WHATSAPP_MESSAGE_TYPE_MAP[message.type] ?? "texto") as IncomingMessageEvent["type"],
       timestamp: new Date(message.timestamp * 1000),
     };
+  }
+
+  /**
+   * Incoming media is frequently not yet downloadable the instant the "message" event
+   * fires — WhatsApp Web hasn't finished fetching/decrypting the blob from its CDN yet
+   * — so a single downloadMedia() call failing is normal and not evidence the media is
+   * actually unavailable. A few retries with a short delay resolve the vast majority of
+   * these; only a message that still fails after that gets treated as truly undownloadable.
+   */
+  private async downloadMediaWithRetry(message: Message, attempts = 3, delayMs = 1500) {
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const media = await message.downloadMedia().catch((error) => {
+        console.warn(`[whatsapp] downloadMedia falhou (tentativa ${attempt}/${attempts}):`, (error as Error).message);
+        return undefined;
+      });
+      if (media) return media;
+      if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    return undefined;
   }
 
   /** Exponential backoff, capped attempts — never loops forever (spec §6). */
