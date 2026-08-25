@@ -69,7 +69,17 @@ function runTool(tool: QueryTool, serviceKeyword?: string) {
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
       const receivables = db.select().from(schema.accountsReceivable).all().filter((r) => r.dueDate >= start && r.dueDate <= end && r.status !== "pago");
       const totalCents = receivables.reduce((sum, r) => sum + (r.amountCents - r.paidAmountCents), 0);
-      return { summary: `Você tem ${formatCents(totalCents)} a receber este mês (${receivables.length} conta(s)).`, items: receivables };
+      const items = receivables.map((r) => {
+        const customer = db.select().from(schema.customers).where(eq(schema.customers.id, r.customerId)).get();
+        return {
+          customer: customer?.name ?? "Cliente",
+          description: r.description,
+          amountCents: r.amountCents - r.paidAmountCents,
+          dueDate: r.dueDate,
+          status: r.status,
+        };
+      });
+      return { summary: `Você tem ${formatCents(totalCents)} a receber este mês (${items.length} conta(s)).`, items };
     }
 
     case "leads_by_service": {
