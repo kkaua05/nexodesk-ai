@@ -3,8 +3,25 @@ import type { Client as WWebClient, Message, Contact } from "whatsapp-web.js";
 const { Client, LocalAuth, MessageMedia } = pkg;
 import QRCode from "qrcode";
 import { rmSync } from "node:fs";
+import { createId } from "@nexodesk/shared";
 import { BaseMessagingProvider, type ConnectionStatus, type SendResult, type SendMediaInput } from "./messaging-provider.js";
 import { translateWhatsappSendError } from "./send-error.js";
+
+/**
+ * whatsapp-web.js's injected page script builds the returned Message object by reading
+ * WhatsApp Web's own internal state right after the send call — when WA Web's frontend
+ * bundle shifts (it updates server-side outside our control), that lookup can throw
+ * ("Cannot read properties of undefined (reading 'id')") even though the message was
+ * already handed off and genuinely delivered (WhatsApp itself shows it sent, with
+ * delivery ticks). Treating this specific failure as an error lost the message from our
+ * own chat entirely, even though it went out. A real "not sent" failure (not registered,
+ * not connected, actual network/protocol error) always throws a different, recognizable
+ * message, so this narrow match is safe.
+ */
+function isPostSendSerializationGlitch(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Cannot read propert.*of undefined/i.test(message);
+}
 
 /**
  * WhatsApp addresses some contacts (mostly business/community-linked accounts) by an
@@ -245,9 +262,15 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     this.assertConnected();
     await this.throttle();
     const chatId = await this.resolveChatId(recipient);
-    const sent = await this.client.sendMessage(chatId, message);
-    this.lastSentAt = Date.now();
-    return { externalId: sent.id._serialized };
+    try {
+      const sent = await this.client.sendMessage(chatId, message);
+      this.lastSentAt = Date.now();
+      return { externalId: sent.id._serialized };
+    } catch (error) {
+      if (!isPostSendSerializationGlitch(error)) throw error;
+      this.lastSentAt = Date.now();
+      return { externalId: `local:${createId()}` };
+    }
   }
 
   async sendMedia(recipient: string, media: SendMediaInput): Promise<SendResult> {
@@ -255,9 +278,15 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     await this.throttle();
     const chatId = await this.resolveChatId(recipient);
     const messageMedia = new MessageMedia(media.mimeType, media.base64, media.fileName);
-    const sent = await this.client.sendMessage(chatId, messageMedia, { caption: media.caption });
-    this.lastSentAt = Date.now();
-    return { externalId: sent.id._serialized };
+    try {
+      const sent = await this.client.sendMessage(chatId, messageMedia, { caption: media.caption });
+      this.lastSentAt = Date.now();
+      return { externalId: sent.id._serialized };
+    } catch (error) {
+      if (!isPostSendSerializationGlitch(error)) throw error;
+      this.lastSentAt = Date.now();
+      return { externalId: `local:${createId()}` };
+    }
   }
 
   async getConnectionStatus(): Promise<ConnectionStatus> {

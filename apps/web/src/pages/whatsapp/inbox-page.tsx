@@ -235,7 +235,7 @@ function ChatPanel({ conversation }: { conversation: Conversation }) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSend();
+                if (!sendMessage.isPending) handleSend();
               }
             }}
             placeholder="Escreva uma mensagem..."
