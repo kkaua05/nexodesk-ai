@@ -50,6 +50,10 @@ export function MediaMessage({ messageId, type, fileName, outbound }: { messageI
     return <img src={url} alt="Imagem enviada" className="max-h-72 max-w-full rounded-lg object-contain" />;
   }
 
+  if (type === "sticker") {
+    return <img src={url} alt="Figurinha" className="h-32 w-32 object-contain" />;
+  }
+
   if (type === "audio") {
     return <audio controls src={url} className="h-10 max-w-full" />;
   }

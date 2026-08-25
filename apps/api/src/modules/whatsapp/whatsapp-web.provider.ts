@@ -4,7 +4,7 @@ const { Client, LocalAuth, MessageMedia } = pkg;
 import QRCode from "qrcode";
 import { rmSync } from "node:fs";
 import { createId } from "@nexodesk/shared";
-import { BaseMessagingProvider, type ConnectionStatus, type SendResult, type SendMediaInput } from "./messaging-provider.js";
+import { BaseMessagingProvider, type ConnectionStatus, type IncomingMessageEvent, type SendResult, type SendMediaInput } from "./messaging-provider.js";
 import { translateWhatsappSendError } from "./send-error.js";
 
 /**
@@ -114,26 +114,19 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     });
 
     this.client.on("message", async (message: Message) => {
-      // Groups (@g.us), broadcast lists (@broadcast) and status updates are out of
-      // scope for a 1:1 sales/support inbox — without this filter, a group's JID gets
-      // misread as a "phone number" and pollutes the contact list with garbage entries.
-      if (message.isStatus || message.fromMe) return;
-      if (message.from.endsWith("@g.us") || message.from.endsWith("@broadcast")) return;
+      const event = await this.buildIncomingEvent(message);
+      if (event) this.emit("message", event);
+    });
 
-      const contact = await message.getContact().catch(() => undefined);
-      const media = message.hasMedia ? await message.downloadMedia().catch(() => undefined) : undefined;
-
-      this.emit("message", {
-        externalMessageId: message.id._serialized,
-        externalChatId: message.from,
-        fromPhone: resolveFromPhone(message.from, contact),
-        fromName: contact?.pushname ?? contact?.name,
-        avatarUrl: await contact?.getProfilePicUrl().catch(() => undefined),
-        body: message.body,
-        media: media ? { base64: media.data, mimeType: media.mimetype, fileName: media.filename ?? undefined } : undefined,
-        type: (WHATSAPP_MESSAGE_TYPE_MAP[message.type] ?? "texto") as never,
-        timestamp: new Date(message.timestamp * 1000),
-      });
+    // "message_create" fires for every message (including our own) from the same
+    // underlying WhatsApp Web hook as "message" — a rare but observed WhatsApp Web
+    // version quirk fires one event but not the other for a given message. Listening
+    // to both is a harmless safety net: buildIncomingEvent() already filters out
+    // fromMe, and appendMessage() downstream is idempotent on externalId, so a message
+    // caught by both listeners is deduplicated automatically instead of doubling up.
+    this.client.on("message_create", async (message: Message) => {
+      const event = await this.buildIncomingEvent(message);
+      if (event) this.emit("message", event);
     });
 
     this.client.on("message_ack", (message: Message, ack: number) => {
@@ -152,6 +145,41 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   private setStatus(status: ConnectionStatus) {
     this.status = status;
     this.emit("status", status);
+  }
+
+  /**
+   * Groups (@g.us), broadcast lists (@broadcast) and status updates are out of scope
+   * for a 1:1 sales/support inbox — without this filter, a group's JID gets misread as
+   * a "phone number" and pollutes the contact list with garbage entries.
+   */
+  private async buildIncomingEvent(message: Message): Promise<IncomingMessageEvent | undefined> {
+    if (message.isStatus || message.fromMe) return undefined;
+    if (message.from.endsWith("@g.us") || message.from.endsWith("@broadcast")) return undefined;
+
+    const contact = await message.getContact().catch(() => undefined);
+    const media = message.hasMedia ? await message.downloadMedia().catch(() => undefined) : undefined;
+
+    // `message.id._serialized` occasionally comes back empty for messages that arrive
+    // while the session is resyncing after a brief reconnect (a known instability of
+    // this integration — see connect()'s comments) — appendMessage() requires a
+    // non-null externalId, so an empty native id used to crash the whole handler and
+    // the message was lost entirely instead of just missing its real WhatsApp id. A
+    // deterministic fallback (same chat + timestamp + body always produce the same
+    // key) keeps the message from being dropped while still deduplicating retries of
+    // the exact same event.
+    const externalMessageId = message.id?._serialized || `local:${message.from}:${message.timestamp}:${(message.body ?? "").slice(0, 60)}`;
+
+    return {
+      externalMessageId,
+      externalChatId: message.from,
+      fromPhone: resolveFromPhone(message.from, contact),
+      fromName: contact?.pushname ?? contact?.name,
+      avatarUrl: await contact?.getProfilePicUrl().catch(() => undefined),
+      body: message.body,
+      media: media ? { base64: media.data, mimeType: media.mimetype, fileName: media.filename ?? undefined } : undefined,
+      type: (WHATSAPP_MESSAGE_TYPE_MAP[message.type] ?? "texto") as IncomingMessageEvent["type"],
+      timestamp: new Date(message.timestamp * 1000),
+    };
   }
 
   /** Exponential backoff, capped attempts — never loops forever (spec §6). */
