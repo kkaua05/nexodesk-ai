@@ -52,12 +52,17 @@ export function appendMessage(input: AppendMessageInput) {
     .get();
 
   const preview = input.body?.slice(0, 140) ?? `[${input.type ?? "mensagem"}]`;
+  // A human sending a message here is a handoff signal — the bot goes quiet on this
+  // conversation from that point on, so it never talks over or contradicts the
+  // attendant. It stays off until someone explicitly re-enables it for this chat.
+  const isHumanTakeover = input.direction === "outbound" && !!input.sentByUserId;
   const conversation = db
     .update(schema.conversations)
     .set({
       lastMessagePreview: preview,
       lastMessageAt: message.createdAt,
       unreadCount: input.direction === "inbound" ? sqlIncrementUnread(input.conversationId) : 0,
+      ...(isHumanTakeover ? { aiEnabled: false } : {}),
     })
     .where(eq(schema.conversations.id, input.conversationId))
     .returning()
@@ -72,6 +77,19 @@ export function appendMessage(input: AppendMessageInput) {
 function sqlIncrementUnread(conversationId: string): number {
   const current = db.select().from(schema.conversations).where(eq(schema.conversations.id, conversationId)).get();
   return (current?.unreadCount ?? 0) + 1;
+}
+
+/** Manual override for "Nexo AI responde automaticamente" — lets an attendant hand a conversation back to the bot, or silence it early. */
+export function setConversationAiEnabled(conversationId: string, enabled: boolean) {
+  const updated = db
+    .update(schema.conversations)
+    .set({ aiEnabled: enabled })
+    .where(eq(schema.conversations.id, conversationId))
+    .returning()
+    .get();
+  if (!updated) throw new NotFoundError("Conversa");
+  emitEvent(SOCKET_EVENTS.CONVERSATION_UPDATED, { conversation: updated });
+  return updated;
 }
 
 export function markConversationRead(conversationId: string) {

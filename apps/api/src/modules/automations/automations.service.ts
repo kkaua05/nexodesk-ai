@@ -7,6 +7,7 @@ import { SOCKET_EVENTS } from "@nexodesk/shared";
 export type AutomationKey =
   | "lead_auto_create"
   | "lead_ai_analysis"
+  | "whatsapp_ai_auto_reply"
   | "sale_conversion"
   | "payment_due_soon"
   | "payment_overdue"

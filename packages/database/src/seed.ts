@@ -119,6 +119,11 @@ async function seedSystemData() {
   const automationDefs = [
     { key: "lead_auto_create", name: "Cadastro automático de leads", description: "Cria contato/lead ao receber mensagem de número desconhecido" },
     { key: "lead_ai_analysis", name: "Análise automática por IA", description: "Classifica intenção e extrai dados da primeira mensagem de um lead" },
+    {
+      key: "whatsapp_ai_auto_reply",
+      name: "Nexo AI responde automaticamente",
+      description: "A IA responde sozinha às mensagens do WhatsApp até um atendente assumir a conversa manualmente",
+    },
     { key: "sale_conversion", name: "Conversão de venda", description: "Converte lead em cliente e cria projeto + financeiro ao ganhar uma venda" },
     { key: "payment_due_soon", name: "Aviso de vencimento", description: "Alerta quando um pagamento vence em 1 dia" },
     { key: "payment_overdue", name: "Pagamento vencido", description: "Marca conta como atrasada e cria alerta" },
@@ -136,6 +141,7 @@ async function seedSystemData() {
     automations: {
       lead_auto_create: true,
       lead_ai_analysis: true,
+      whatsapp_ai_auto_reply: true,
       sale_conversion: true,
       payment_due_soon: true,
       payment_overdue: true,

@@ -3,7 +3,8 @@ import { findOrCreateContact } from "../contacts/contacts.service.js";
 import { createLeadForContact, findActiveLeadByContact, applyScoreEvent } from "../leads/leads.service.js";
 import { findOrCreateConversation, appendMessage, updateMessageStatus } from "../conversations/conversations.service.js";
 import { runAutomation } from "../automations/automations.service.js";
-import { analyzeConversation, extractLeadData } from "../ai/ai.service.js";
+import { analyzeConversation, extractLeadData, suggestReply } from "../ai/ai.service.js";
+import { sendWhatsappMessage } from "./whatsapp.service.js";
 import { createNotification } from "../notifications/notifications.service.js";
 import { emitEvent } from "../../shared/realtime.js";
 import { SOCKET_EVENTS } from "@nexodesk/shared";
@@ -80,5 +81,18 @@ async function handleIncomingMessage(event: IncomingMessageEvent) {
   await runAutomation("lead_ai_analysis", { type: "lead", id: lead.id }, async () => {
     await analyzeConversation(conversation.id, lead!.id, event.body!);
     await extractLeadData(conversation.id, lead!.id);
+  });
+
+  // Off the moment a human sends a message in this conversation (see appendMessage's
+  // isHumanTakeover) — the bot never talks over an attendant, and stays quiet on a
+  // conversation someone already took ownership of until it's explicitly reopened.
+  if (!conversation.aiEnabled) return;
+
+  await runAutomation("whatsapp_ai_auto_reply", { type: "conversation", id: conversation.id }, async () => {
+    const reply = await suggestReply(conversation.id);
+    if (!reply) return; // AI offline/unavailable — safeAI() already returned null, stay silent rather than guess
+
+    const { externalId } = await sendWhatsappMessage(contact.phoneNormalized, reply);
+    appendMessage({ conversationId: conversation.id, externalId, direction: "outbound", type: "texto", body: reply, status: "enviado" });
   });
 }

@@ -35,6 +35,8 @@ export const conversations = sqliteTable(
     lastMessagePreview: text("last_message_preview"),
     lastMessageAt: integer("last_message_at", { mode: "timestamp_ms" }),
     assignedUserId: text("assigned_user_id"),
+    /** Nexo AI auto-reply for this conversation — turned off automatically the moment a human sends a message here. */
+    aiEnabled: integer("ai_enabled", { mode: "boolean" }).notNull().default(true),
     ...timestamps,
   },
   (table) => [

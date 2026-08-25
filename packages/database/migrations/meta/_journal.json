@@ -15,6 +15,13 @@
       "when": 1787357489388,
       "tag": "0001_complete_nextwave",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787685677642,
+      "tag": "0002_pretty_ultimatum",
+      "breakpoints": true
     }
   ]
 }

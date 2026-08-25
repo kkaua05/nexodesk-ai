@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { Handshake, CheckSquare, StickyNote } from "lucide-react";
+import { Handshake, CheckSquare, StickyNote, Sparkles } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { NotesPanel } from "@/components/notes/notes-panel";
 import { initials, formatCents, formatPhoneOrIdentifier } from "@/lib/format";
-import type { Conversation } from "@/hooks/use-conversations";
+import { type Conversation, useToggleConversationAi } from "@/hooks/use-conversations";
 import { useLeads } from "@/hooks/use-leads";
 import { CloseSaleDialog } from "@/components/sales/close-sale-dialog";
 import { useCreateTask } from "@/hooks/use-tasks";
@@ -26,6 +28,7 @@ const LEAD_STATUS_LABEL: Record<string, string> = {
 export function ContactPanel({ conversation }: { conversation: Conversation }) {
   const { data: leads } = useLeads();
   const createTask = useCreateTask();
+  const toggleAi = useToggleConversationAi();
   const [closeSaleOpen, setCloseSaleOpen] = useState(false);
 
   const lead = leads?.find((l) => l.contactId === conversation.contactId);
@@ -41,6 +44,19 @@ export function ContactPanel({ conversation }: { conversation: Conversation }) {
           <p className="font-semibold">{conversation.contact?.name ?? "Sem nome"}</p>
           <p className="text-xs text-muted-foreground">{formatPhoneOrIdentifier(conversation.contact?.phoneNormalized)}</p>
         </div>
+      </div>
+
+      <div className="mt-5 flex items-center justify-between rounded-lg border border-border/60 px-3 py-2">
+        <Label htmlFor="ai-enabled" className="flex items-center gap-1.5 text-sm font-normal">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          Nexo AI responde aqui
+        </Label>
+        <Switch
+          id="ai-enabled"
+          checked={conversation.aiEnabled}
+          disabled={toggleAi.isPending}
+          onCheckedChange={(checked) => toggleAi.mutate({ conversationId: conversation.id, enabled: checked })}
+        />
       </div>
 
       {lead ? (

@@ -17,6 +17,8 @@ export interface Conversation {
   unreadCount: number;
   lastMessagePreview: string | null;
   lastMessageAt: string | null;
+  /** Nexo AI auto-reply for this conversation — turns off automatically once an attendant sends a message here. */
+  aiEnabled: boolean;
   contact?: Contact;
   /** Only present right after POST /conversations, if the optional first message failed to send. */
   messageError?: string;
@@ -76,6 +78,15 @@ export function useSendMessage(conversationId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
+  });
+}
+
+export function useToggleConversationAi() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, enabled }: { conversationId: string; enabled: boolean }) =>
+      api.patch<Conversation>(`/conversations/${conversationId}/ai-enabled`, { enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["conversations"] }),
   });
 }
 

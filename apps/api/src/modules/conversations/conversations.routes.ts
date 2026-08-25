@@ -5,7 +5,14 @@ import { createReadStream } from "node:fs";
 import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
 import { NotFoundError, ValidationError } from "@nexodesk/shared";
-import { listConversations, listMessages, markConversationRead, appendMessage, findOrCreateConversation } from "./conversations.service.js";
+import {
+  listConversations,
+  listMessages,
+  markConversationRead,
+  appendMessage,
+  findOrCreateConversation,
+  setConversationAiEnabled,
+} from "./conversations.service.js";
 import { sendWhatsappMessage, sendWhatsappMedia } from "../whatsapp/whatsapp.service.js";
 import { findOrCreateContact } from "../contacts/contacts.service.js";
 import { suggestReply } from "../ai/ai.service.js";
@@ -13,6 +20,7 @@ import { saveMediaBase64, mediaFilePath } from "../../shared/media-storage.js";
 import { translateWhatsappSendError } from "../whatsapp/send-error.js";
 
 const sendSchema = z.object({ body: z.string().min(1) });
+const aiEnabledSchema = z.object({ enabled: z.boolean() });
 
 const startConversationSchema = z.object({
   phone: z.string().min(8),
@@ -77,6 +85,13 @@ export async function conversationsRoutes(app: FastifyInstance) {
   app.post("/conversations/:id/read", async (request) => {
     const { id } = request.params as { id: string };
     return markConversationRead(id);
+  });
+
+  /** Liga/desliga o Nexo AI respondendo sozinho nesta conversa específica. */
+  app.patch("/conversations/:id/ai-enabled", async (request) => {
+    const { id } = request.params as { id: string };
+    const { enabled } = aiEnabledSchema.parse(request.body);
+    return setConversationAiEnabled(id, enabled);
   });
 
   app.post("/conversations/:id/messages", async (request, reply) => {

@@ -1,0 +1,1 @@
+ALTER TABLE `conversations` ADD `ai_enabled` integer DEFAULT true NOT NULL;
