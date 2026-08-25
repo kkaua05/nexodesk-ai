@@ -19,6 +19,9 @@ export function translateWhatsappSendError(error: unknown): string {
   if (/browser is already running|userDataDir/i.test(message)) {
     return "Já existe uma conexão em andamento. Aguarde alguns segundos ou clique em \"Limpar sessão\" se o problema persistir.";
   }
+  if (/sendIq called before startComms|Cannot read propert.*of undefined/i.test(message)) {
+    return "O WhatsApp ainda está inicializando a sessão (ou não está conectado). Conecte em Configurações → Integrações, aguarde a leitura do QR Code e tente novamente.";
+  }
 
   return message;
 }

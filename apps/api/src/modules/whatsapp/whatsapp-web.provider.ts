@@ -213,10 +213,36 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
       if (resolved?.pn) return resolved.pn;
       throw new Error("Não foi possível encontrar o número de telefone deste contato para enviar a mensagem.");
     }
-    return recipient.includes("@") ? recipient : `${recipient.replace(/\D/g, "")}@c.us`;
+
+    if (recipient.includes("@")) return recipient;
+
+    // Sending straight to a hand-built "<digits>@c.us" id without resolving it first
+    // is what throws WhatsApp Web's internal "No LID for user" error — it happens even
+    // for a genuinely registered number the first time this session talks to it,
+    // because that JID's LID mapping hasn't been cached locally yet. getNumberId()
+    // forces WhatsApp to resolve (and cache) it up front, and also lets us tell a truly
+    // unregistered number apart from this transient first-contact case.
+    //
+    // getNumberId is documented to resolve to null for a number that isn't on
+    // WhatsApp, but on some WhatsApp Web versions it throws instead ("Cannot read
+    // properties of undefined (reading 'id')") — both outcomes mean the same thing
+    // here, so a thrown error is treated identically to a null result.
+    const numberId = await this.client.getNumberId(recipient.replace(/\D/g, "")).catch(() => null);
+    if (!numberId) {
+      throw new Error("Este número não está registrado no WhatsApp.");
+    }
+    return numberId._serialized;
+  }
+
+  /** Fail fast with a clear message instead of letting Puppeteer/WWebJS crash deep inside a not-ready page. */
+  private assertConnected() {
+    if (this.status.status !== "conectado") {
+      throw new Error("O WhatsApp não está conectado. Conecte em Configurações → Integrações antes de enviar mensagens.");
+    }
   }
 
   async sendMessage(recipient: string, message: string): Promise<SendResult> {
+    this.assertConnected();
     await this.throttle();
     const chatId = await this.resolveChatId(recipient);
     const sent = await this.client.sendMessage(chatId, message);
@@ -225,6 +251,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   }
 
   async sendMedia(recipient: string, media: SendMediaInput): Promise<SendResult> {
+    this.assertConnected();
     await this.throttle();
     const chatId = await this.resolveChatId(recipient);
     const messageMedia = new MessageMedia(media.mimeType, media.base64, media.fileName);
