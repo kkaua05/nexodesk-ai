@@ -67,6 +67,21 @@ pnpm dev
 
 Para rodar em modo produção: `pnpm build` (typecheck da API + build otimizado do frontend) seguido de `pnpm start` (sobe a API via `tsx`, servindo o bundle do frontend a partir de um servidor estático de sua escolha — ex: `npx serve apps/web/dist`).
 
+## Deploy
+
+Frontend e backend são hospedados separadamente — o backend roda um processo Node de longa duração (WhatsApp real via Puppeteer + WebSocket), incompatível com o modelo serverless do Vercel.
+
+**Backend (Railway, ou qualquer host que rode um Dockerfile)**
+1. Novo serviço → *Deploy from GitHub repo* → este repositório, **Root Directory = raiz do monorepo** (não `apps/api` — o build precisa do workspace pnpm inteiro). `railway.json` já aponta pro `apps/api/Dockerfile`.
+2. Variáveis de ambiente (mesmas de `apps/api/.env.example`): `DATABASE_URL` (Neon), `JWT_SECRET`, `AI_PROVIDER=groq` + `GROQ_API_KEY`, `CORS_ORIGIN` (URL do frontend no Vercel), `WHATSAPP_SESSION_PATH=/data/sessions`, `UPLOAD_ROOT=/data/uploads`.
+3. Adicione um **Volume** persistente montado em `/data` — sem isso, a sessão do WhatsApp (QR code) e os arquivos enviados se perdem a cada redeploy.
+4. Rode as migrations uma vez contra o banco de produção: `DATABASE_URL=<neon-url> pnpm db:migrate`.
+
+**Frontend (Vercel)**
+1. Novo projeto → importar este repositório, **Root Directory = `apps/web`** (o Vercel detecta o monorepo pnpm e instala a partir da raiz automaticamente).
+2. Variável de ambiente: `VITE_API_URL` = URL pública do backend no Railway (ex: `https://nexodesk-api.up.railway.app`, sem barra no final).
+3. `apps/web/vercel.json` já cuida do rewrite de SPA (rotas do React Router não devem dar 404 ao recarregar a página).
+
 ## WhatsApp Integration
 
 Integração via `whatsapp-web.js` (não oficial). Ao conectar em **Configurações → Integrações**, um QR Code é exibido para pareamento com o WhatsApp do celular. A sessão é persistida localmente (`WHATSAPP_SESSION_PATH`) e reconectada automaticamente com backoff exponencial limitado. Como é uma integração não oficial, evite disparos em massa — o provider já aplica um rate limit mínimo entre envios.
