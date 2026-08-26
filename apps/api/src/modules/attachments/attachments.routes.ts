@@ -8,8 +8,9 @@ import { pipeline } from "node:stream/promises";
 import { db } from "../../shared/database.js";
 import { schema } from "@nexodesk/database";
 import { NotFoundError, ValidationError } from "@nexodesk/shared";
+import { env } from "../../shared/env.js";
 
-const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+const UPLOAD_ROOT = path.resolve(env.UPLOAD_ROOT);
 const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15MB — generous for briefings/contracts, small enough to keep the local disk sane
 
 const querySchema = z.object({

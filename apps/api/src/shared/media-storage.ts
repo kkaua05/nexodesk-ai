@@ -1,8 +1,9 @@
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createId } from "@nexodesk/shared";
+import { env } from "./env.js";
 
-const MEDIA_ROOT = path.resolve(process.cwd(), "uploads", "whatsapp");
+const MEDIA_ROOT = path.resolve(env.UPLOAD_ROOT, "whatsapp");
 
 const EXTENSION_BY_MIME: Record<string, string> = {
   "image/jpeg": "jpg",

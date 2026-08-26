@@ -1,5 +1,13 @@
 import { useAuthStore } from "@/stores/auth-store";
 
+/**
+ * In dev, Vite's proxy forwards relative /api and /socket.io requests to the local
+ * API — API_BASE_URL stays empty. In a production build (e.g. the frontend deployed
+ * on Vercel, backend on Railway), there's no proxy, so every request needs the full
+ * backend origin, injected at build time via VITE_API_URL.
+ */
+export const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
 export class ApiError extends Error {
   readonly code: string;
   readonly statusCode: number;
@@ -14,7 +22,7 @@ export class ApiError extends Error {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = useAuthStore.getState().token;
 
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE_URL}/api${path}`, {
     ...options,
     headers: {
       // Only set Content-Type when there's an actual body — Fastify's JSON body

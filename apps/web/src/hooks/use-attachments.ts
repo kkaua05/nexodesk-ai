@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api-client";
+import { api, ApiError, API_BASE_URL } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth-store";
 
 export interface Attachment {
@@ -27,7 +27,7 @@ async function uploadFile(entityType: string, entityId: string, file: File) {
   formData.append("entityId", entityId);
   formData.append("file", file);
 
-  const response = await fetch("/api/attachments", {
+  const response = await fetch(`${API_BASE_URL}/api/attachments`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
@@ -57,5 +57,5 @@ export function useDeleteAttachment(entityType: string, entityId: string | undef
 }
 
 export function attachmentDownloadUrl(id: string) {
-  return `/api/attachments/${id}/download`;
+  return `${API_BASE_URL}/api/attachments/${id}/download`;
 }

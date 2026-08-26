@@ -2,12 +2,13 @@ import { io, type Socket } from "socket.io-client";
 import { useEffect, useRef } from "react";
 import type { SocketEventName } from "@nexodesk/shared";
 import { useAuthStore } from "@/stores/auth-store";
+import { API_BASE_URL } from "@/lib/api-client";
 
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io({ path: "/socket.io", autoConnect: true, transports: ["websocket", "polling"] });
+    socket = io(API_BASE_URL || undefined, { path: "/socket.io", autoConnect: true, transports: ["websocket", "polling"] });
   }
   return socket;
 }

@@ -17,6 +17,7 @@ const envSchema = z.object({
   GROQ_MODEL: z.string().default("openai/gpt-oss-120b"),
   GROQ_TIMEOUT_MS: z.coerce.number().default(15000),
   WHATSAPP_SESSION_PATH: z.string().default("./sessions"),
+  UPLOAD_ROOT: z.string().default("./uploads"),
   DEMO_MODE: z.coerce.boolean().default(false),
 });
 

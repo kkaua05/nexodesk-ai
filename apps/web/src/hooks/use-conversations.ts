@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api-client";
+import { api, ApiError, API_BASE_URL } from "@/lib/api-client";
 import { useSocketEvent } from "@/lib/socket";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -113,7 +113,7 @@ export function useSendMedia(conversationId: string | undefined) {
       formData.append("file", file);
       if (caption) formData.append("caption", caption);
 
-      const response = await fetch(`/api/conversations/${conversationId}/media`, {
+      const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/media`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
@@ -132,7 +132,7 @@ export function useSendMedia(conversationId: string | undefined) {
 }
 
 export function mediaUrl(messageId: string) {
-  return `/api/conversations/messages/${messageId}/media`;
+  return `${API_BASE_URL}/api/conversations/messages/${messageId}/media`;
 }
 
 export interface StartConversationInput {
