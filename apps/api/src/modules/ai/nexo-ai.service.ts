@@ -51,7 +51,7 @@ Responda em JSON: {"tool": "...", "serviceKeyword": string|null}`,
     return { tool, question, summary: reply ?? "Não consegui responder agora — tente novamente em instantes.", items: [] as never[] };
   }
 
-  const result = runTool(tool, route?.serviceKeyword ?? undefined);
+  const result = await runTool(tool, route?.serviceKeyword ?? undefined);
   return { tool, question, ...result };
 }
 
@@ -65,15 +65,17 @@ function guessToolFromKeywords(question: string): AskTool {
   return "general_chat";
 }
 
-function runTool(tool: QueryTool, serviceKeyword?: string) {
+async function runTool(tool: QueryTool, serviceKeyword?: string) {
   switch (tool) {
     case "leads_needing_followup": {
-      const followUps = db.select().from(schema.followUps).all().filter((f) => !f.resolvedAt);
-      const items = followUps.map((f) => {
-        const lead = f.leadId ? db.select().from(schema.leads).where(eq(schema.leads.id, f.leadId)).get() : undefined;
-        const contact = lead ? db.select().from(schema.contacts).where(eq(schema.contacts.id, lead.contactId)).get() : undefined;
-        return { name: contact?.name ?? "Contato sem nome", reason: f.reason, note: f.note };
-      });
+      const followUps = (await (db.select().from(schema.followUps))).filter((f) => !f.resolvedAt);
+      const items = await Promise.all(
+        followUps.map(async (f) => {
+          const lead = f.leadId ? (await (db.select().from(schema.leads).where(eq(schema.leads.id, f.leadId))))[0] : undefined;
+          const contact = lead ? (await (db.select().from(schema.contacts).where(eq(schema.contacts.id, lead.contactId))))[0] : undefined;
+          return { name: contact?.name ?? "Contato sem nome", reason: f.reason, note: f.note };
+        }),
+      );
       return { summary: `${items.length} lead(s)/proposta(s) precisam de follow-up.`, items };
     }
 
@@ -81,47 +83,55 @@ function runTool(tool: QueryTool, serviceKeyword?: string) {
       const now = new Date();
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-      const receivables = db.select().from(schema.accountsReceivable).all().filter((r) => r.dueDate >= start && r.dueDate <= end && r.status !== "pago");
+      const receivables = (await (db.select().from(schema.accountsReceivable))).filter((r) => r.dueDate >= start && r.dueDate <= end && r.status !== "pago");
       const totalCents = receivables.reduce((sum, r) => sum + (r.amountCents - r.paidAmountCents), 0);
-      const items = receivables.map((r) => {
-        const customer = db.select().from(schema.customers).where(eq(schema.customers.id, r.customerId)).get();
-        return {
-          customer: customer?.name ?? "Cliente",
-          description: r.description,
-          amountCents: r.amountCents - r.paidAmountCents,
-          dueDate: r.dueDate,
-          status: r.status,
-        };
-      });
+      const items = await Promise.all(
+        receivables.map(async (r) => {
+          const customer = (await (db.select().from(schema.customers).where(eq(schema.customers.id, r.customerId))))[0];
+          return {
+            customer: customer?.name ?? "Cliente",
+            description: r.description,
+            amountCents: r.amountCents - r.paidAmountCents,
+            dueDate: r.dueDate,
+            status: r.status,
+          };
+        }),
+      );
       return { summary: `Você tem ${formatCents(totalCents)} a receber este mês (${items.length} conta(s)).`, items };
     }
 
     case "leads_by_service": {
-      const services = db.select().from(schema.services).all();
+      const services = (await (db.select().from(schema.services)));
       const match = serviceKeyword ? services.find((s) => s.name.toLowerCase().includes(serviceKeyword.toLowerCase())) : undefined;
-      const leads = db.select().from(schema.leads).all().filter((l) => !match || l.serviceId === match.id);
-      const items = leads.map((l) => {
-        const contact = db.select().from(schema.contacts).where(eq(schema.contacts.id, l.contactId)).get();
-        return { name: contact?.name ?? "Contato sem nome", status: l.status, score: l.score };
-      });
+      const leads = (await (db.select().from(schema.leads))).filter((l) => !match || l.serviceId === match.id);
+      const items = await Promise.all(
+        leads.map(async (l) => {
+          const contact = (await (db.select().from(schema.contacts).where(eq(schema.contacts.id, l.contactId))))[0];
+          return { name: contact?.name ?? "Contato sem nome", status: l.status, score: l.score };
+        }),
+      );
       return { summary: `${items.length} lead(s) encontrados${match ? ` para ${match.name}` : ""}.`, items };
     }
 
     case "overdue_customers": {
-      const overdue = db.select().from(schema.accountsReceivable).all().filter((r) => r.status === "vencido");
-      const items = overdue.map((r) => {
-        const customer = db.select().from(schema.customers).where(eq(schema.customers.id, r.customerId)).get();
-        return { customer: customer?.name ?? "Cliente", description: r.description, amountCents: r.amountCents - r.paidAmountCents, dueDate: r.dueDate };
-      });
+      const overdue = (await (db.select().from(schema.accountsReceivable))).filter((r) => r.status === "vencido");
+      const items = await Promise.all(
+        overdue.map(async (r) => {
+          const customer = (await (db.select().from(schema.customers).where(eq(schema.customers.id, r.customerId))))[0];
+          return { customer: customer?.name ?? "Cliente", description: r.description, amountCents: r.amountCents - r.paidAmountCents, dueDate: r.dueDate };
+        }),
+      );
       return { summary: `${items.length} cliente(s) com pagamento atrasado.`, items };
     }
 
     case "top_leads": {
-      const leads = db.select().from(schema.leads).all().sort((a, b) => b.score - a.score).slice(0, 10);
-      const items = leads.map((l) => {
-        const contact = db.select().from(schema.contacts).where(eq(schema.contacts.id, l.contactId)).get();
-        return { name: contact?.name ?? "Contato sem nome", score: l.score, status: l.status };
-      });
+      const leads = (await (db.select().from(schema.leads))).sort((a, b) => b.score - a.score).slice(0, 10);
+      const items = await Promise.all(
+        leads.map(async (l) => {
+          const contact = (await (db.select().from(schema.contacts).where(eq(schema.contacts.id, l.contactId))))[0];
+          return { name: contact?.name ?? "Contato sem nome", score: l.score, status: l.status };
+        }),
+      );
       return { summary: `Seus ${items.length} melhores leads por pontuação.`, items };
     }
   }

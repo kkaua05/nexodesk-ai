@@ -35,13 +35,12 @@ export async function safeAI<T>(fn: (provider: AIProvider) => Promise<T>): Promi
   }
 }
 
-function toConversationMessages(conversationId: string): ConversationMessageForAI[] {
-  return db
-    .select()
-    .from(schema.messages)
-    .where(eq(schema.messages.conversationId, conversationId))
-    .orderBy(schema.messages.createdAt)
-    .all()
+async function toConversationMessages(conversationId: string): Promise<ConversationMessageForAI[]> {
+  return (await (db
+      .select()
+      .from(schema.messages)
+      .where(eq(schema.messages.conversationId, conversationId))
+      .orderBy(schema.messages.createdAt)))
     .filter((m) => m.body)
     .map((m) => ({ direction: m.direction, body: m.body as string, timestamp: m.createdAt }));
 }
@@ -50,67 +49,61 @@ export async function analyzeConversation(conversationId: string, leadId: string
   const classification = await safeAI((p) => p.classifyIntent(lastMessage));
   if (!classification) return null;
 
-  return db
-    .insert(schema.aiAnalyses)
-    .values({
-      conversationId,
-      leadId,
-      intent: classification.intent,
-      service: classification.service,
-      urgency: classification.urgency,
-      sentiment: classification.sentiment,
-      model: aiProvider.modelName,
-    })
-    .returning()
-    .get();
+  return (await (db
+      .insert(schema.aiAnalyses)
+      .values({
+        conversationId,
+        leadId,
+        intent: classification.intent,
+        service: classification.service,
+        urgency: classification.urgency,
+        sentiment: classification.sentiment,
+        model: aiProvider.modelName,
+      })
+      .returning()))[0];
 }
 
 export async function extractLeadData(conversationId: string, leadId: string) {
-  const messages = toConversationMessages(conversationId);
+  const messages = await toConversationMessages(conversationId);
   if (messages.length === 0) return null;
 
   const extracted = await safeAI((p) => p.extractLeadData(messages));
   if (!extracted) return null;
 
-  db.insert(schema.aiAnalyses)
-    .values({ conversationId, leadId, extractedData: extracted, model: aiProvider.modelName })
-    .run();
+  (await (db.insert(schema.aiAnalyses)
+        .values({ conversationId, leadId, extractedData: extracted, model: aiProvider.modelName })));
 
   if (extracted.segment) {
-    db.insert(schema.aiMemories)
-      .values({ leadId, content: `Segmento: ${extracted.segment}`, kind: "fato", sourceConversationId: conversationId })
-      .run();
+    (await (db.insert(schema.aiMemories)
+            .values({ leadId, content: `Segmento: ${extracted.segment}`, kind: "fato", sourceConversationId: conversationId })));
   }
   if (extracted.budgetCents) {
-    db.insert(schema.aiMemories)
-      .values({ leadId, content: `Orçamento informado: ${extracted.budgetCents}`, kind: "fato", sourceConversationId: conversationId })
-      .run();
+    (await (db.insert(schema.aiMemories)
+            .values({ leadId, content: `Orçamento informado: ${extracted.budgetCents}`, kind: "fato", sourceConversationId: conversationId })));
   }
   if (extracted.deadline) {
-    db.insert(schema.aiMemories)
-      .values({ leadId, content: `Prazo desejado: ${extracted.deadline}`, kind: "fato", sourceConversationId: conversationId })
-      .run();
+    (await (db.insert(schema.aiMemories)
+            .values({ leadId, content: `Prazo desejado: ${extracted.deadline}`, kind: "fato", sourceConversationId: conversationId })));
   }
 
   return extracted;
 }
 
 export async function summarizeConversation(conversationId: string) {
-  const messages = toConversationMessages(conversationId);
+  const messages = await toConversationMessages(conversationId);
   if (messages.length === 0) return null;
 
   const summary = await safeAI((p) => p.summarizeConversation(messages));
   if (!summary) return null;
 
-  return db
-    .insert(schema.aiSummaries)
-    .values({ conversationId, summary: summary.summary, nextStep: summary.nextStep, model: aiProvider.modelName })
-    .returning()
-    .get();
+  return (await (db
+      .insert(schema.aiSummaries)
+      .values({ conversationId, summary: summary.summary, nextStep: summary.nextStep, model: aiProvider.modelName })
+      .returning()))[0];
 }
 
 export async function suggestReply(conversationId: string) {
-  const messages = toConversationMessages(conversationId);
+  const messages = await toConversationMessages(conversationId);
   if (messages.length === 0) return null;
   return safeAI((p) => p.suggestReply(messages));
 }

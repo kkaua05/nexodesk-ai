@@ -20,27 +20,25 @@ export async function notesRoutes(app: FastifyInstance) {
 
   app.get("/notes", async (request) => {
     const { entityType, entityId } = querySchema.parse(request.query);
-    return db
-      .select()
-      .from(schema.notes)
-      .where(and(eq(schema.notes.entityType, entityType), eq(schema.notes.entityId, entityId)))
-      .orderBy(desc(schema.notes.createdAt))
-      .all();
+    return (await (db
+          .select()
+          .from(schema.notes)
+          .where(and(eq(schema.notes.entityType, entityType), eq(schema.notes.entityId, entityId)))
+          .orderBy(desc(schema.notes.createdAt))));
   });
 
   app.post("/notes", async (request, reply) => {
     const body = createNoteSchema.parse(request.body);
-    const note = db
-      .insert(schema.notes)
-      .values({ ...body, authorUserId: request.user.sub })
-      .returning()
-      .get();
+    const note = (await (db
+          .insert(schema.notes)
+          .values({ ...body, authorUserId: request.user.sub })
+          .returning()))[0];
     return reply.status(201).send(note);
   });
 
   app.delete("/notes/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    db.delete(schema.notes).where(eq(schema.notes.id, id)).run();
+    (await (db.delete(schema.notes).where(eq(schema.notes.id, id))));
     return reply.status(204).send();
   });
 }

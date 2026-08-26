@@ -8,11 +8,11 @@ export async function automationsRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
   app.get("/automations", async () => {
-    const automations = db.select().from(schema.automations).all();
-    return automations.map((a) => ({ ...a, isEnabled: isAutomationEnabled(a.key as AutomationKey) }));
+    const automations = (await (db.select().from(schema.automations)));
+    return Promise.all(automations.map(async (a) => ({ ...a, isEnabled: await isAutomationEnabled(a.key as AutomationKey) })));
   });
 
   app.get("/automations/runs", async () => {
-    return db.select().from(schema.automationRuns).orderBy(desc(schema.automationRuns.startedAt)).limit(50).all();
+    return (await (db.select().from(schema.automationRuns).orderBy(desc(schema.automationRuns.startedAt)).limit(50)));
   });
 }

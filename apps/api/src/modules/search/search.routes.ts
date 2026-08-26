@@ -12,31 +12,27 @@ export async function searchRoutes(app: FastifyInstance) {
     const { q } = querySchema.parse(request.query);
     const term = q.toLowerCase();
 
-    const customers = db
-      .select()
-      .from(schema.customers)
-      .all()
+    const customers = (await (db
+          .select()
+          .from(schema.customers)))
       .filter((c) => c.name.toLowerCase().includes(term))
       .slice(0, 10);
 
-    const contacts = db
-      .select()
-      .from(schema.contacts)
-      .all()
+    const contacts = (await (db
+          .select()
+          .from(schema.contacts)))
       .filter((c) => (c.name?.toLowerCase().includes(term) ?? false) || c.phoneNormalized.includes(term))
       .slice(0, 10);
 
-    const proposals = db
-      .select()
-      .from(schema.proposals)
-      .all()
+    const proposals = (await (db
+          .select()
+          .from(schema.proposals)))
       .filter((p) => p.number.toLowerCase().includes(term))
       .slice(0, 10);
 
-    const projects = db
-      .select()
-      .from(schema.projects)
-      .all()
+    const projects = (await (db
+          .select()
+          .from(schema.projects)))
       .filter((p) => p.name.toLowerCase().includes(term))
       .slice(0, 10);
 

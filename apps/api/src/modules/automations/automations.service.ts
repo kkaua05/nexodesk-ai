@@ -13,8 +13,8 @@ export type AutomationKey =
   | "payment_overdue"
   | "lead_inactivity_followup";
 
-export function isAutomationEnabled(key: AutomationKey): boolean {
-  const row = db.select().from(schema.settings).where(eq(schema.settings.key, "automations")).get();
+export async function isAutomationEnabled(key: AutomationKey): Promise<boolean> {
+  const row = (await (db.select().from(schema.settings).where(eq(schema.settings.key, "automations"))))[0];
   const map = (row?.value as Record<string, boolean> | undefined) ?? {};
   return map[key] ?? true;
 }
@@ -30,40 +30,37 @@ export async function runAutomation<T>(
 ): Promise<T | undefined> {
   const startedAt = new Date();
 
-  if (!isAutomationEnabled(key)) {
-    db.insert(schema.automationRuns)
-      .values({ automationKey: key, startedAt, finishedAt: new Date(), status: "pulado", entityType: entity?.type, entityId: entity?.id })
-      .run();
+  if (!(await isAutomationEnabled(key))) {
+    (await (db.insert(schema.automationRuns)
+            .values({ automationKey: key, startedAt, finishedAt: new Date(), status: "pulado", entityType: entity?.type, entityId: entity?.id })));
     return undefined;
   }
 
   try {
     const result = await fn();
-    db.insert(schema.automationRuns)
-      .values({
-        automationKey: key,
-        startedAt,
-        finishedAt: new Date(),
-        status: "sucesso",
-        entityType: entity?.type,
-        entityId: entity?.id,
-        result: result === undefined ? null : (result as Record<string, unknown>),
-      })
-      .run();
+    (await (db.insert(schema.automationRuns)
+            .values({
+              automationKey: key,
+              startedAt,
+              finishedAt: new Date(),
+              status: "sucesso",
+              entityType: entity?.type,
+              entityId: entity?.id,
+              result: result === undefined ? null : (result as Record<string, unknown>),
+            })));
     emitEvent(SOCKET_EVENTS.AUTOMATION_RUN_COMPLETED, { key, status: "sucesso", entity });
     return result;
   } catch (error) {
-    db.insert(schema.automationRuns)
-      .values({
-        automationKey: key,
-        startedAt,
-        finishedAt: new Date(),
-        status: "erro",
-        entityType: entity?.type,
-        entityId: entity?.id,
-        error: (error as Error).message,
-      })
-      .run();
+    (await (db.insert(schema.automationRuns)
+            .values({
+              automationKey: key,
+              startedAt,
+              finishedAt: new Date(),
+              status: "erro",
+              entityType: entity?.type,
+              entityId: entity?.id,
+              error: (error as Error).message,
+            })));
     emitEvent(SOCKET_EVENTS.AUTOMATION_RUN_COMPLETED, { key, status: "erro", entity });
     // Automations must never take down the request/message flow that triggered them.
     return undefined;

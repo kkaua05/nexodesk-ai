@@ -8,12 +8,12 @@ export async function dashboardRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
   app.get("/dashboard/summary", async () => {
-    const leads = db.select().from(schema.leads).all();
-    const conversations = db.select().from(schema.conversations).all();
-    const proposals = db.select().from(schema.proposals).all();
-    const opportunities = db.select().from(schema.opportunities).all();
-    const projects = db.select().from(schema.projects).all();
-    const financial = getFinancialOverview();
+    const leads = (await (db.select().from(schema.leads)));
+    const conversations = (await (db.select().from(schema.conversations)));
+    const proposals = (await (db.select().from(schema.proposals)));
+    const opportunities = (await (db.select().from(schema.opportunities)));
+    const projects = (await (db.select().from(schema.projects)));
+    const financial = await getFinancialOverview();
 
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
@@ -36,7 +36,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
   });
 
   app.get("/dashboard/charts/leads-by-period", async () => {
-    const leads = db.select().from(schema.leads).all();
+    const leads = (await (db.select().from(schema.leads)));
     const buckets = new Map<string, number>();
     for (const lead of leads) {
       const key = lead.createdAt.toISOString().slice(0, 10);
@@ -48,8 +48,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
   });
 
   app.get("/dashboard/charts/revenue-vs-expenses", async () => {
-    const receivables = db.select().from(schema.accountsReceivable).all();
-    const payables = db.select().from(schema.accountsPayable).all();
+    const receivables = (await (db.select().from(schema.accountsReceivable)));
+    const payables = (await (db.select().from(schema.accountsPayable)));
     const buckets = new Map<string, { revenueCents: number; expensesCents: number }>();
 
     for (const r of receivables) {
@@ -71,8 +71,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
   });
 
   app.get("/dashboard/charts/services-sold", async () => {
-    const sales = db.select().from(schema.sales).all();
-    const services = db.select().from(schema.services).all();
+    const sales = (await (db.select().from(schema.sales)));
+    const services = (await (db.select().from(schema.services)));
     const counts = new Map<string, number>();
     for (const sale of sales) {
       if (!sale.serviceId) continue;
@@ -85,7 +85,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
   });
 
   app.get("/dashboard/charts/leads-by-origin", async () => {
-    const leads = db.select().from(schema.leads).all();
+    const leads = (await (db.select().from(schema.leads)));
     const counts = new Map<string, number>();
     for (const lead of leads) counts.set(lead.origin, (counts.get(lead.origin) ?? 0) + 1);
     return Array.from(counts.entries()).map(([origin, count]) => ({ origin, count }));

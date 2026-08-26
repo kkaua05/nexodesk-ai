@@ -1,7 +1,7 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, boolean } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 
-export const services = sqliteTable("services", {
+export const services = pgTable("services", {
   id: idColumn(),
   name: text("name").notNull(),
   description: text("description"),
@@ -10,12 +10,12 @@ export const services = sqliteTable("services", {
   minPriceCents: integer("min_price_cents").notNull(),
   averageDeliveryDays: integer("average_delivery_days"),
   suggestedDownPaymentCents: integer("suggested_down_payment_cents"),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
   ...timestamps,
 });
 
 /** Reusable stage checklist per service (spec §24), copied into a project when it's created. */
-export const serviceStageTemplates = sqliteTable("service_stage_templates", {
+export const serviceStageTemplates = pgTable("service_stage_templates", {
   id: idColumn(),
   serviceId: text("service_id")
     .notNull()

@@ -1,11 +1,11 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { leads } from "./crm";
 import { customers } from "./customers";
 import { services } from "./catalog";
 import { PROPOSAL_STATUS } from "@nexodesk/shared";
 
-export const proposals = sqliteTable(
+export const proposals = pgTable(
   "proposals",
   {
     id: idColumn(),
@@ -24,16 +24,16 @@ export const proposals = sqliteTable(
     conditions: text("conditions"),
     notes: text("notes"),
     status: text("status", { enum: PROPOSAL_STATUS }).notNull().default("rascunho"),
-    validUntil: integer("valid_until", { mode: "timestamp_ms" }),
-    sentAt: integer("sent_at", { mode: "timestamp_ms" }),
-    viewedAt: integer("viewed_at", { mode: "timestamp_ms" }),
-    respondedAt: integer("responded_at", { mode: "timestamp_ms" }),
+    validUntil: timestamp("valid_until", { mode: "date" }),
+    sentAt: timestamp("sent_at", { mode: "date" }),
+    viewedAt: timestamp("viewed_at", { mode: "date" }),
+    respondedAt: timestamp("responded_at", { mode: "date" }),
     ...timestamps,
   },
   (table) => [uniqueIndex("proposals_number_idx").on(table.number), index("proposals_lead_idx").on(table.leadId)],
 );
 
-export const proposalItems = sqliteTable(
+export const proposalItems = pgTable(
   "proposal_items",
   {
     id: idColumn(),

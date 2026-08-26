@@ -4,7 +4,7 @@ import { schema } from "@nexodesk/database";
 import { SOCKET_EVENTS } from "@nexodesk/shared";
 import { emitEvent } from "../../shared/realtime.js";
 
-export function createNotification(input: {
+export async function createNotification(input: {
   userId?: string;
   type: (typeof schema.NOTIFICATION_TYPE)[number];
   title: string;
@@ -12,24 +12,24 @@ export function createNotification(input: {
   entityType?: string;
   entityId?: string;
 }) {
-  const notification = db.insert(schema.notifications).values(input).returning().get();
+  const notification = (await (db.insert(schema.notifications).values(input).returning()))[0];
   emitEvent(SOCKET_EVENTS.NOTIFICATION_CREATED, { notification });
   return notification;
 }
 
-export function listNotifications(userId?: string) {
-  const all = db.select().from(schema.notifications).all();
+export async function listNotifications(userId?: string) {
+  const all = (await (db.select().from(schema.notifications)));
   return all.filter((n) => !userId || !n.userId || n.userId === userId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
-export function markNotificationRead(id: string) {
-  return db.update(schema.notifications).set({ readAt: new Date() }).where(eq(schema.notifications.id, id)).returning().get();
+export async function markNotificationRead(id: string) {
+  return (await (db.update(schema.notifications).set({ readAt: new Date() }).where(eq(schema.notifications.id, id)).returning()))[0];
 }
 
-export function markAllNotificationsRead(userId: string) {
-  const unread = listNotifications(userId).filter((n) => !n.readAt);
+export async function markAllNotificationsRead(userId: string) {
+  const unread = (await listNotifications(userId)).filter((n) => !n.readAt);
   const now = new Date();
   for (const notification of unread) {
-    db.update(schema.notifications).set({ readAt: now }).where(eq(schema.notifications.id, notification.id)).run();
+    (await (db.update(schema.notifications).set({ readAt: now }).where(eq(schema.notifications.id, notification.id))));
   }
 }

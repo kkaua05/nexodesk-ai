@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { leads } from "./crm";
 import { customers } from "./customers";
@@ -13,7 +13,7 @@ export const FOLLOWUP_REASON = [
   "pagamento_atrasado",
 ] as const;
 
-export const followUps = sqliteTable(
+export const followUps = pgTable(
   "follow_ups",
   {
     id: idColumn(),
@@ -22,8 +22,8 @@ export const followUps = sqliteTable(
     customerId: text("customer_id").references(() => customers.id, { onDelete: "cascade" }),
     proposalId: text("proposal_id").references(() => proposals.id, { onDelete: "cascade" }),
     note: text("note"),
-    dueAt: integer("due_at", { mode: "timestamp_ms" }).notNull(),
-    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+    dueAt: timestamp("due_at", { mode: "date" }).notNull(),
+    resolvedAt: timestamp("resolved_at", { mode: "date" }),
     ...timestamps,
   },
   (table) => [index("follow_ups_due_idx").on(table.dueAt)],

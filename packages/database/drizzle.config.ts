@@ -1,11 +1,16 @@
 import { defineConfig } from "drizzle-kit";
 
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL não definida");
+}
+
 export default defineConfig({
   schema: "./src/schema/index.ts",
   out: "./migrations",
-  dialect: "sqlite",
+  dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "file:../../apps/api/data/database.sqlite",
+    url: databaseUrl,
   },
   strict: true,
   verbose: true,

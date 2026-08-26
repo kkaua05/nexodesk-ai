@@ -19,20 +19,21 @@ export async function customersRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
   app.get("/customers", async () => {
-    return listCustomers().map((c) => ({ ...c, financial: getCustomerFinancialSummary(c.id) }));
+    const customers = await listCustomers();
+    return Promise.all(customers.map(async (c) => ({ ...c, financial: await getCustomerFinancialSummary(c.id) })));
   });
 
   app.post("/customers", async (request, reply) => {
     const body = createCustomerSchema.parse(request.body);
-    const customer = createCustomer(body);
+    const customer = await createCustomer(body);
     return reply.status(201).send(customer);
   });
 
   app.get("/customers/:id", async (request) => {
     const { id } = request.params as { id: string };
-    const customer = getCustomerById(id);
-    const contact = db.select().from(schema.contacts).where(eq(schema.contacts.id, customer.contactId)).get();
-    return { ...customer, contact, financial: getCustomerFinancialSummary(id) };
+    const customer = await getCustomerById(id);
+    const contact = (await (db.select().from(schema.contacts).where(eq(schema.contacts.id, customer.contactId))))[0];
+    return { ...customer, contact, financial: await getCustomerFinancialSummary(id) };
   });
 
   app.get("/customers/:id/timeline", async (request) => {
@@ -42,21 +43,21 @@ export async function customersRoutes(app: FastifyInstance) {
 
   app.get("/customers/:id/projects", async (request) => {
     const { id } = request.params as { id: string };
-    return db.select().from(schema.projects).where(eq(schema.projects.customerId, id)).all();
+    return (await (db.select().from(schema.projects).where(eq(schema.projects.customerId, id))));
   });
 
   app.get("/customers/:id/proposals", async (request) => {
     const { id } = request.params as { id: string };
-    return db.select().from(schema.proposals).where(eq(schema.proposals.customerId, id)).all();
+    return (await (db.select().from(schema.proposals).where(eq(schema.proposals.customerId, id))));
   });
 
   app.get("/customers/:id/receivables", async (request) => {
     const { id } = request.params as { id: string };
-    return db.select().from(schema.accountsReceivable).where(eq(schema.accountsReceivable.customerId, id)).all();
+    return (await (db.select().from(schema.accountsReceivable).where(eq(schema.accountsReceivable.customerId, id))));
   });
 
   app.get("/customers/:id/notes", async (request) => {
     const { id } = request.params as { id: string };
-    return db.select().from(schema.notes).where(eq(schema.notes.entityType, "customer")).all().filter((n) => n.entityId === id);
+    return (await (db.select().from(schema.notes).where(eq(schema.notes.entityType, "customer")))).filter((n) => n.entityId === id);
   });
 }

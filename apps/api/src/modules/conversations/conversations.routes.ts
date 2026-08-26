@@ -39,19 +39,21 @@ export async function conversationsRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
   app.get("/conversations", async () => {
-    const conversations = listConversations();
-    return conversations.map((c) => {
-      const contact = db.select().from(schema.contacts).where(eq(schema.contacts.id, c.contactId)).get();
-      return { ...c, contact };
-    });
+    const conversations = await listConversations();
+    return Promise.all(
+      conversations.map(async (c) => {
+        const contact = (await (db.select().from(schema.contacts).where(eq(schema.contacts.id, c.contactId))))[0];
+        return { ...c, contact };
+      }),
+    );
   });
 
   /** "Adicionar contato" / iniciar conversa com um número que ainda não escreveu (spec: controle total do WhatsApp pelo sistema). */
   app.post("/conversations", async (request, reply) => {
     const { phone, name, message } = startConversationSchema.parse(request.body);
 
-    const { contact } = findOrCreateContact({ phone, name, firstMessageAt: new Date() });
-    const conversation = findOrCreateConversation(contact.id, `${contact.phoneNormalized.replace("+", "")}@c.us`);
+    const { contact } = await findOrCreateContact({ phone, name, firstMessageAt: new Date() });
+    const conversation = await findOrCreateConversation(contact!.id, `${contact!.phoneNormalized.replace("+", "")}@c.us`);
 
     // The contact/conversation are the primary outcome of "adicionar contato" — a
     // failed first message (e.g. an invalid/unregistered number) must not undo that
@@ -59,9 +61,9 @@ export async function conversationsRoutes(app: FastifyInstance) {
     let messageError: string | undefined;
     if (message) {
       try {
-        const { externalId } = await sendWhatsappMessage(contact.phoneNormalized, message);
-        appendMessage({
-          conversationId: conversation.id,
+        const { externalId } = await sendWhatsappMessage(contact!.phoneNormalized, message);
+        await appendMessage({
+          conversationId: conversation!.id,
           externalId,
           direction: "outbound",
           type: "texto",
@@ -98,10 +100,10 @@ export async function conversationsRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const { body } = sendSchema.parse(request.body);
 
-    const conversation = db.select().from(schema.conversations).where(eq(schema.conversations.id, id)).get();
+    const conversation = (await (db.select().from(schema.conversations).where(eq(schema.conversations.id, id))))[0];
     if (!conversation) throw new NotFoundError("Conversa");
 
-    const contact = db.select().from(schema.contacts).where(eq(schema.contacts.id, conversation.contactId)).get();
+    const contact = (await (db.select().from(schema.contacts).where(eq(schema.contacts.id, conversation.contactId))))[0];
     if (!contact) throw new NotFoundError("Contato");
 
     // Real WhatsApp id up front lets message_ack (delivered/read receipts) match this row later.
@@ -109,7 +111,7 @@ export async function conversationsRoutes(app: FastifyInstance) {
       throw new ValidationError(translateWhatsappSendError(error));
     });
 
-    const { message } = appendMessage({
+    const { message } = await appendMessage({
       conversationId: id,
       externalId,
       direction: "outbound",
@@ -125,10 +127,10 @@ export async function conversationsRoutes(app: FastifyInstance) {
   /** Envio de arquivos/imagens/áudio pelo WhatsApp (upload multipart → mídia real enviada). */
   app.post("/conversations/:id/media", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const conversation = db.select().from(schema.conversations).where(eq(schema.conversations.id, id)).get();
+    const conversation = (await (db.select().from(schema.conversations).where(eq(schema.conversations.id, id))))[0];
     if (!conversation) throw new NotFoundError("Conversa");
 
-    const contact = db.select().from(schema.contacts).where(eq(schema.contacts.id, conversation.contactId)).get();
+    const contact = (await (db.select().from(schema.contacts).where(eq(schema.contacts.id, conversation.contactId))))[0];
     if (!contact) throw new NotFoundError("Contato");
 
     const file = await request.file({ limits: { fileSize: 30 * 1024 * 1024 } });
@@ -149,7 +151,7 @@ export async function conversationsRoutes(app: FastifyInstance) {
 
     const mediaPath = saveMediaBase64(base64, file.mimetype, file.filename);
 
-    const { message } = appendMessage({
+    const { message } = await appendMessage({
       conversationId: id,
       externalId,
       direction: "outbound",
@@ -167,7 +169,7 @@ export async function conversationsRoutes(app: FastifyInstance) {
   /** Abrir/baixar um arquivo recebido ou enviado pelo WhatsApp. */
   app.get("/conversations/messages/:messageId/media", async (request, reply) => {
     const { messageId } = request.params as { messageId: string };
-    const message = db.select().from(schema.messages).where(eq(schema.messages.id, messageId)).get();
+    const message = (await (db.select().from(schema.messages).where(eq(schema.messages.id, messageId))))[0];
     if (!message || !message.mediaUrl) throw new NotFoundError("Arquivo");
 
     return reply.type(guessMimeFromExtension(message.mediaUrl)).send(createReadStream(mediaFilePath(message.mediaUrl)));

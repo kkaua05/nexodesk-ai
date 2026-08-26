@@ -23,27 +23,27 @@ const createProjectSchema = z.object({
 export async function projectsRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
-  app.get("/projects", async () => db.select().from(schema.projects).all());
+  app.get("/projects", async () => (await (db.select().from(schema.projects))));
 
   app.post("/projects", async (request, reply) => {
     const body = createProjectSchema.parse(request.body);
-    const project = createProject({ ...body, responsibleUserId: request.user.sub });
+    const project = await createProject({ ...body, responsibleUserId: request.user.sub });
     return reply.status(201).send(project);
   });
 
   app.get("/projects/:id", async (request) => {
     const { id } = request.params as { id: string };
-    const project = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
+    const project = (await (db.select().from(schema.projects).where(eq(schema.projects.id, id))))[0];
     if (!project) throw new NotFoundError("Projeto");
-    const stages = db.select().from(schema.projectStages).where(eq(schema.projectStages.projectId, id)).all();
-    const tasks = db.select().from(schema.tasks).where(eq(schema.tasks.projectId, id)).all();
+    const stages = (await (db.select().from(schema.projectStages).where(eq(schema.projectStages.projectId, id))));
+    const tasks = (await (db.select().from(schema.tasks).where(eq(schema.tasks.projectId, id))));
     return { ...project, stages, tasks };
   });
 
   app.patch("/projects/:id/status", async (request) => {
     const { id } = request.params as { id: string };
     const { status } = statusSchema.parse(request.body);
-    const project = db.update(schema.projects).set({ status }).where(eq(schema.projects.id, id)).returning().get();
+    const project = (await (db.update(schema.projects).set({ status }).where(eq(schema.projects.id, id)).returning()))[0];
     if (!project) throw new NotFoundError("Projeto");
     emitEvent(SOCKET_EVENTS.PROJECT_UPDATED, { project });
     return project;
@@ -52,7 +52,7 @@ export async function projectsRoutes(app: FastifyInstance) {
   app.patch("/projects/:id/progress", async (request) => {
     const { id } = request.params as { id: string };
     const { progress } = progressSchema.parse(request.body);
-    const project = db.update(schema.projects).set({ progress }).where(eq(schema.projects.id, id)).returning().get();
+    const project = (await (db.update(schema.projects).set({ progress }).where(eq(schema.projects.id, id)).returning()))[0];
     if (!project) throw new NotFoundError("Projeto");
     emitEvent(SOCKET_EVENTS.PROJECT_UPDATED, { project });
     return project;
@@ -60,7 +60,7 @@ export async function projectsRoutes(app: FastifyInstance) {
 
   app.patch("/projects/stages/:stageId/complete", async (request) => {
     const { stageId } = request.params as { stageId: string };
-    const stage = db.update(schema.projectStages).set({ completedAt: new Date() }).where(eq(schema.projectStages.id, stageId)).returning().get();
+    const stage = (await (db.update(schema.projectStages).set({ completedAt: new Date() }).where(eq(schema.projectStages.id, stageId)).returning()))[0];
     if (!stage) throw new NotFoundError("Etapa do projeto");
     return stage;
   });

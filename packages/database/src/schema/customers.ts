@@ -1,9 +1,9 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { contacts } from "./whatsapp";
 import { leads } from "./crm";
 
-export const customers = sqliteTable(
+export const customers = pgTable(
   "customers",
   {
     id: idColumn(),
@@ -20,7 +20,7 @@ export const customers = sqliteTable(
     address: text("address"),
     responsibleUserId: text("responsible_user_id"),
     notes: text("notes"),
-    customerSince: integer("customer_since", { mode: "timestamp_ms" }).notNull(),
+    customerSince: timestamp("customer_since", { mode: "date" }).notNull(),
     ...timestamps,
   },
   (table) => [index("customers_contact_idx").on(table.contactId)],
@@ -30,7 +30,7 @@ export const customers = sqliteTable(
  * Aggregated cross-module timeline (spec §19): populated by domain services as real
  * events occur (message, proposal, sale, payment, project stage...), never synthesized.
  */
-export const timelineEvents = sqliteTable(
+export const timelineEvents = pgTable(
   "timeline_events",
   {
     id: idColumn(),
@@ -42,8 +42,8 @@ export const timelineEvents = sqliteTable(
     title: text("title").notNull(),
     description: text("description"),
     valueCents: integer("value_cents"),
-    metadata: text("metadata", { mode: "json" }),
-    occurredAt: integer("occurred_at", { mode: "timestamp_ms" }).notNull(),
+    metadata: jsonb("metadata"),
+    occurredAt: timestamp("occurred_at", { mode: "date" }).notNull(),
     ...timestamps,
   },
   (table) => [index("timeline_events_customer_idx").on(table.customerId)],

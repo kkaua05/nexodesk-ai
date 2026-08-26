@@ -25,7 +25,7 @@ export async function authRoutes(app: FastifyInstance) {
   );
 
   app.get("/auth/me", { onRequest: [app.authenticate] }, async (request) => {
-    const user = getUserById(request.user.sub);
+    const user = await getUserById(request.user.sub);
     if (!user) throw new NotFoundError("Usuário");
     return { id: user.id, name: user.name, email: user.email, role: user.role, avatarUrl: user.avatarUrl };
   });

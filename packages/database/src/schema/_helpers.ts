@@ -1,4 +1,4 @@
-import { text, integer } from "drizzle-orm/sqlite-core";
+import { text, timestamp } from "drizzle-orm/pg-core";
 import { createId } from "@nexodesk/shared";
 
 /** Primary key: ULID stored as text, generated app-side. */
@@ -9,10 +9,10 @@ export const idColumn = () =>
 
 /** Unix epoch millis, always UTC — presentation layer applies timezone (spec §75). */
 export const timestamps = {
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
+  createdAt: timestamp("created_at", { mode: "date" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+  updatedAt: timestamp("updated_at", { mode: "date" })
     .notNull()
     .$defaultFn(() => new Date())
     .$onUpdateFn(() => new Date()),

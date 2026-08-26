@@ -16,18 +16,17 @@ export async function usersRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
   app.get("/users", async () => {
-    const users = db.select().from(schema.users).all();
+    const users = (await (db.select().from(schema.users)));
     return users.map(({ passwordHash: _passwordHash, ...safe }) => safe);
   });
 
   app.post("/users", { onRequest: [app.authenticate, app.requireRole("owner")] }, async (request, reply) => {
     const body = createUserSchema.parse(request.body);
     const passwordHash = await argon2.hash(body.password);
-    const user = db
-      .insert(schema.users)
-      .values({ name: body.name, email: body.email, passwordHash, role: body.role })
-      .returning()
-      .get();
+    const user = (await (db
+          .insert(schema.users)
+          .values({ name: body.name, email: body.email, passwordHash, role: body.role })
+          .returning()))[0]!;
     const { passwordHash: _hash, ...safe } = user;
     return reply.status(201).send(safe);
   });

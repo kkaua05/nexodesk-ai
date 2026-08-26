@@ -9,14 +9,14 @@ describe("runAutomation", () => {
     const result = await runAutomation("lead_auto_create", { type: "test", id: "abc" }, () => ({ done: true }));
     expect(result).toEqual({ done: true });
 
-    const runs = db.select().from(schema.automationRuns).where(eq(schema.automationRuns.entityId, "abc")).all();
+    const runs = (await (db.select().from(schema.automationRuns).where(eq(schema.automationRuns.entityId, "abc"))));
     expect(runs).toHaveLength(1);
     expect(runs[0]?.status).toBe("sucesso");
   });
 
   it("logs a 'pulado' entry and never calls the function when the automation is disabled in settings", async () => {
-    db.insert(schema.settings).values({ key: "automations", value: { lead_ai_analysis: false } }).run();
-    expect(isAutomationEnabled("lead_ai_analysis")).toBe(false);
+    (await (db.insert(schema.settings).values({ key: "automations", value: { lead_ai_analysis: false } })));
+    expect(await isAutomationEnabled("lead_ai_analysis")).toBe(false);
 
     let called = false;
     const result = await runAutomation("lead_ai_analysis", { type: "test", id: "xyz" }, () => {
@@ -27,7 +27,7 @@ describe("runAutomation", () => {
     expect(called).toBe(false);
     expect(result).toBeUndefined();
 
-    const runs = db.select().from(schema.automationRuns).where(eq(schema.automationRuns.entityId, "xyz")).all();
+    const runs = (await (db.select().from(schema.automationRuns).where(eq(schema.automationRuns.entityId, "xyz"))));
     expect(runs[0]?.status).toBe("pulado");
   });
 
@@ -37,7 +37,7 @@ describe("runAutomation", () => {
     });
 
     expect(result).toBeUndefined();
-    const runs = db.select().from(schema.automationRuns).where(eq(schema.automationRuns.entityId, "err1")).all();
+    const runs = (await (db.select().from(schema.automationRuns).where(eq(schema.automationRuns.entityId, "err1"))));
     expect(runs[0]?.status).toBe("erro");
     expect(runs[0]?.error).toBe("boom");
   });

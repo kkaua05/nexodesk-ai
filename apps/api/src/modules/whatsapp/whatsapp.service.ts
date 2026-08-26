@@ -44,11 +44,11 @@ async function getProvider(): Promise<MessagingProvider> {
           type: "whatsapp_desconectado",
           title: "WhatsApp desconectado",
           body: status.lastError ?? "A conexão com o WhatsApp caiu. Reconecte em Configurações → Integrações.",
-        });
+        }).catch((error) => console.error("[whatsapp] falha ao criar notificação de desconexão:", error));
       }
       previousStatus = status.status;
 
-      persistIntegrationStatus(status);
+      persistIntegrationStatus(status).catch((error) => console.error("[whatsapp] falha ao persistir status da integração:", error));
       emitEvent(SOCKET_EVENTS.WHATSAPP_STATUS_CHANGED, { ...status });
     });
   }
@@ -60,8 +60,8 @@ export function initWhatsapp() {
   // intentionally empty: see getProvider()
 }
 
-function persistIntegrationStatus(status: ConnectionStatus) {
-  const existing = db.select().from(schema.integrations).where(eq(schema.integrations.provider, PROVIDER_KEY)).get();
+async function persistIntegrationStatus(status: ConnectionStatus) {
+  const existing = (await (db.select().from(schema.integrations).where(eq(schema.integrations.provider, PROVIDER_KEY))))[0];
   const payload = {
     provider: PROVIDER_KEY,
     status: status.status,
@@ -69,9 +69,9 @@ function persistIntegrationStatus(status: ConnectionStatus) {
     lastConnectedAt: status.connectedSince?.toISOString(),
   };
   if (existing) {
-    db.update(schema.integrations).set(payload).where(eq(schema.integrations.id, existing.id)).run();
+    (await (db.update(schema.integrations).set(payload).where(eq(schema.integrations.id, existing.id))));
   } else {
-    db.insert(schema.integrations).values(payload).run();
+    (await (db.insert(schema.integrations).values(payload)));
   }
 }
 

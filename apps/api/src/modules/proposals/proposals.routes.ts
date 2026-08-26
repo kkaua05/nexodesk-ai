@@ -38,7 +38,7 @@ export async function proposalsRoutes(app: FastifyInstance) {
 
   app.post("/proposals", async (request, reply) => {
     const body = createSchema.parse(request.body);
-    const proposal = createProposal(body);
+    const proposal = await createProposal(body);
     return reply.status(201).send(proposal);
   });
 

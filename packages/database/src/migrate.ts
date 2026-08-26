@@ -1,9 +1,20 @@
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { createDatabase } from "./client";
 
-const databaseUrl = process.env.DATABASE_URL ?? "file:../../apps/api/data/database.sqlite";
-const { db, sqlite } = createDatabase(databaseUrl);
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL não definida");
+}
 
-migrate(db, { migrationsFolder: "./migrations" });
-console.log(`[database] migrations applied → ${databaseUrl}`);
-sqlite.close();
+const { db, pool } = createDatabase(databaseUrl);
+
+async function main() {
+  await migrate(db, { migrationsFolder: "./migrations" });
+  console.log(`[database] migrations applied → ${databaseUrl}`);
+  await pool.end();
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

@@ -27,13 +27,13 @@ WhatsApp → Lead → CRM → Qualificação → Proposta → Venda → Cliente 
 
 ## Architecture
 
-Monorepo pnpm com três camadas: `packages/shared` (tipos, regras de negócio puras), `packages/database` (schema Drizzle + SQLite), `apps/api` (Fastify, modular por domínio) e `apps/web` (React). Veja [docs/architecture.md](docs/architecture.md) para os diagramas completos.
+Monorepo pnpm com três camadas: `packages/shared` (tipos, regras de negócio puras), `packages/database` (schema Drizzle + PostgreSQL/Neon), `apps/api` (Fastify, modular por domínio) e `apps/web` (React). Veja [docs/architecture.md](docs/architecture.md) para os diagramas completos.
 
 ## Tech Stack
 
 **Frontend** — React, TypeScript, Vite, Tailwind CSS, Radix UI, TanStack Query, Zustand, React Hook Form, Zod, Recharts.
 
-**Backend** — Node.js, TypeScript, Fastify, Socket.IO, Drizzle ORM, SQLite (better-sqlite3), Argon2, whatsapp-web.js, Ollama.
+**Backend** — Node.js, TypeScript, Fastify, Socket.IO, Drizzle ORM, PostgreSQL (Neon serverless), Argon2, whatsapp-web.js, Ollama/Groq.
 
 ## Getting Started
 
@@ -77,7 +77,7 @@ Toda a IA roda localmente via [Ollama](https://ollama.com). Configure `OLLAMA_UR
 
 ## Database
 
-SQLite local via Drizzle ORM, ~39 tabelas cobrindo todo o domínio (contatos, leads, pipeline, clientes, propostas, vendas, projetos, financeiro, agenda, automações, IA, notificações, auditoria). Dinheiro é sempre armazenado como centavos (inteiro), nunca float. Ids são ULID; documentos comerciais (propostas, vendas) têm numeração sequencial própria (`PROP-000001`, `VEN-000001`). A arquitetura comporta migração futura para PostgreSQL sem reescrita do domínio.
+PostgreSQL (Neon serverless) via Drizzle ORM, ~39 tabelas cobrindo todo o domínio (contatos, leads, pipeline, clientes, propostas, vendas, projetos, financeiro, agenda, automações, IA, notificações, auditoria). Dinheiro é sempre armazenado como centavos (inteiro), nunca float. Ids são ULID; documentos comerciais (propostas, vendas) têm numeração sequencial própria (`PROP-000001`, `VEN-000001`).
 
 ## Security
 
@@ -106,7 +106,7 @@ Fases 1–10 do plano original implementadas: fundação, WhatsApp, CRM, comerci
 
 ## Known Limitations
 
-- **Node.js 24 no Windows**: investigação detalhada (bisecção sistemática, isolando cada plugin/módulo) confirmou uma instabilidade nativa real — o processo Node trava com uma assertion (`RemoveEnvironmentCleanupHook`) quando módulos nativos (`better-sqlite3`, e principalmente o Chrome real lançado pelo Puppeteer via whatsapp-web.js) rodam sob Node 24 no Windows. Não é um bug no código da aplicação. A correção aplicada: `pnpm setup:node22` baixa um Node 22 LTS local isolado (dentro de `.tools/`, sem tocar a instalação do sistema) e `apps/api/scripts/run-server.mjs` o usa automaticamente sempre que presente — `pnpm dev`/`pnpm start` já funcionam direto, incluindo a conexão real do WhatsApp (testado e validado: login, CRUD completo, e o `Client.initialize()` do Puppeteer rodando establemente por minutos). Sem rodar `pnpm setup:node22`, o sistema roda no Node do sistema e pode apresentar os mesmos crashes se for Node 23+.
+- **Node.js 24 no Windows**: investigação detalhada (bisecção sistemática, isolando cada plugin/módulo) confirmou uma instabilidade nativa real — o processo Node trava com uma assertion (`RemoveEnvironmentCleanupHook`) quando o Chrome real lançado pelo Puppeteer via whatsapp-web.js roda sob Node 24 no Windows. Não é um bug no código da aplicação. A correção aplicada: `pnpm setup:node22` baixa um Node 22 LTS local isolado (dentro de `.tools/`) e `apps/api/scripts/run-server.mjs` o usa automaticamente sempre que presente — `pnpm dev`/`pnpm start` já funcionam direto, incluindo a conexão real do WhatsApp. Sem rodar `pnpm setup:node22`, o sistema roda no Node do sistema e pode apresentar os mesmos crashes se for Node 23+.
 - A integração com WhatsApp é não oficial; contas podem ser banidas em caso de uso abusivo — não use para disparo em massa.
 - Exportação em PDF ainda não implementada (CSV já disponível em Relatórios para leads, propostas, vendas e contas a receber).
 - RBAC multiusuário granular (permissões por recurso) está preparado no schema mas não tem UI de administração ainda — hoje o controle é por role (`owner`, `admin`, `comercial`, `financeiro`, `atendimento`).

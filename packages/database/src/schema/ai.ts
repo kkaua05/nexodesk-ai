@@ -1,11 +1,11 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, jsonb, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { conversations } from "./whatsapp";
 import { leads } from "./crm";
 import { customers } from "./customers";
 
 /** Structured output of intent classification / data extraction (spec §36-37) — always validated before use. */
-export const aiAnalyses = sqliteTable(
+export const aiAnalyses = pgTable(
   "ai_analyses",
   {
     id: idColumn(),
@@ -15,14 +15,14 @@ export const aiAnalyses = sqliteTable(
     service: text("service"),
     urgency: text("urgency"),
     sentiment: text("sentiment"),
-    extractedData: text("extracted_data", { mode: "json" }),
+    extractedData: jsonb("extracted_data"),
     model: text("model").notNull(),
     ...timestamps,
   },
   (table) => [index("ai_analyses_conversation_idx").on(table.conversationId)],
 );
 
-export const aiSummaries = sqliteTable(
+export const aiSummaries = pgTable(
   "ai_summaries",
   {
     id: idColumn(),
@@ -38,7 +38,7 @@ export const aiSummaries = sqliteTable(
 );
 
 /** "Memória IA" (spec §40) — a fact or an inference about a customer, explicitly labeled. */
-export const aiMemories = sqliteTable(
+export const aiMemories = pgTable(
   "ai_memories",
   {
     id: idColumn(),

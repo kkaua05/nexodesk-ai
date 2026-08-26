@@ -18,19 +18,17 @@ export interface AgendaEntry {
  * (spec §32) — payments never get written twice into `calendar_events`; they're
  * derived on read.
  */
-export function getAgenda(from: Date, to: Date): AgendaEntry[] {
-  const events = db.select().from(schema.calendarEvents).all().filter((e) => e.startAt >= from && e.startAt <= to);
+export async function getAgenda(from: Date, to: Date): Promise<AgendaEntry[]> {
+  const events = (await (db.select().from(schema.calendarEvents))).filter((e) => e.startAt >= from && e.startAt <= to);
 
-  const receivables = db
-    .select()
-    .from(schema.accountsReceivable)
-    .all()
+  const receivables = (await (db
+      .select()
+      .from(schema.accountsReceivable)))
     .filter((r) => r.status !== "pago" && r.status !== "cancelado" && r.dueDate >= from && r.dueDate <= to);
 
-  const payables = db
-    .select()
-    .from(schema.accountsPayable)
-    .all()
+  const payables = (await (db
+      .select()
+      .from(schema.accountsPayable)))
     .filter((p) => p.status !== "pago" && p.status !== "cancelado" && p.dueDate >= from && p.dueDate <= to);
 
   const entries: AgendaEntry[] = [

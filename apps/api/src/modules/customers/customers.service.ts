@@ -20,62 +20,60 @@ export interface CreateCustomerInput {
  * phone-dedup contact lookup as the WhatsApp flow so a manually added customer and one
  * that later writes in on WhatsApp resolve to the same contact instead of splitting.
  */
-export function createCustomer(input: CreateCustomerInput) {
-  const { contact } = findOrCreateContact({ name: input.name, phone: input.phone, firstMessageAt: new Date() });
+export async function createCustomer(input: CreateCustomerInput) {
+  const contact = (await findOrCreateContact({ name: input.name, phone: input.phone, firstMessageAt: new Date() })).contact!;
 
-  const existing = db.select().from(schema.customers).where(eq(schema.customers.contactId, contact.id)).get();
+  const existing = (await (db.select().from(schema.customers).where(eq(schema.customers.contactId, contact.id))))[0];
   if (existing) {
     throw new ConflictError("CUSTOMER_ALREADY_EXISTS", `Já existe um cliente cadastrado com esse telefone: ${existing.name}`);
   }
 
-  const customer = db
-    .insert(schema.customers)
-    .values({
-      contactId: contact.id,
-      name: input.name,
-      email: input.email,
-      company: input.company,
-      document: input.document,
-      address: input.address,
-      notes: input.notes,
-      customerSince: new Date(),
-    })
-    .returning()
-    .get();
+  const customer = (await (db
+      .insert(schema.customers)
+      .values({
+        contactId: contact.id,
+        name: input.name,
+        email: input.email,
+        company: input.company,
+        document: input.document,
+        address: input.address,
+        notes: input.notes,
+        customerSince: new Date(),
+      })
+      .returning()))[0]!;
 
-  addTimelineEvent({ customerId: customer.id, type: "customer_created", title: "Cliente cadastrado manualmente" });
+  await addTimelineEvent({ customerId: customer.id, type: "customer_created", title: "Cliente cadastrado manualmente" });
 
   return customer;
 }
 
-export function listCustomers() {
-  return db.select().from(schema.customers).orderBy(desc(schema.customers.createdAt)).all();
+export async function listCustomers() {
+  return (await (db.select().from(schema.customers).orderBy(desc(schema.customers.createdAt))));
 }
 
-export function getCustomerById(id: string) {
-  const customer = db.select().from(schema.customers).where(eq(schema.customers.id, id)).get();
+export async function getCustomerById(id: string) {
+  const customer = (await (db.select().from(schema.customers).where(eq(schema.customers.id, id))))[0];
   if (!customer) throw new NotFoundError("Cliente");
   return customer;
 }
 
-export function getCustomerFinancialSummary(customerId: string) {
-  const receivables = db.select().from(schema.accountsReceivable).where(eq(schema.accountsReceivable.customerId, customerId)).all();
+export async function getCustomerFinancialSummary(customerId: string) {
+  const receivables = (await (db.select().from(schema.accountsReceivable).where(eq(schema.accountsReceivable.customerId, customerId))));
   const totalContractedCents = receivables.reduce((sum, r) => sum + r.amountCents, 0);
   const receivedCents = receivables.reduce((sum, r) => sum + r.paidAmountCents, 0);
   const pendingCents = totalContractedCents - receivedCents;
   return { totalContractedCents, receivedCents, pendingCents };
 }
 
-export function getCustomerTimeline(customerId: string) {
-  return db
-    .select()
-    .from(schema.timelineEvents)
-    .where(eq(schema.timelineEvents.customerId, customerId))
-    .orderBy(desc(schema.timelineEvents.occurredAt))
-    .all();
+export async function getCustomerTimeline(customerId: string) {
+  return (await (db
+      .select()
+      .from(schema.timelineEvents)
+      .where(eq(schema.timelineEvents.customerId, customerId))
+      .orderBy(desc(schema.timelineEvents.occurredAt))));
 }
 
-export function addTimelineEvent(input: {
+export async function addTimelineEvent(input: {
   customerId: string;
   leadId?: string;
   type: string;
@@ -84,9 +82,8 @@ export function addTimelineEvent(input: {
   valueCents?: number;
   occurredAt?: Date;
 }) {
-  return db
-    .insert(schema.timelineEvents)
-    .values({ ...input, occurredAt: input.occurredAt ?? new Date() })
-    .returning()
-    .get();
+  return (await (db
+      .insert(schema.timelineEvents)
+      .values({ ...input, occurredAt: input.occurredAt ?? new Date() })
+      .returning()))[0];
 }

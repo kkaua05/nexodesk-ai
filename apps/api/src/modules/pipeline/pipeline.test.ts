@@ -7,24 +7,24 @@ import { createLeadForContact } from "../leads/leads.service";
 import { moveOpportunity } from "./pipeline.service";
 
 describe("moveOpportunity", () => {
-  it("persists the stage change, writes history, and syncs the lead status", () => {
-    const contact = findOrCreateContact({ phone: "+5551955550001", firstMessageAt: new Date() }).contact;
-    const lead = createLeadForContact({ contactId: contact.id });
-    const opportunity = db.select().from(schema.opportunities).where(eq(schema.opportunities.leadId, lead.id)).get()!;
+  it("persists the stage change, writes history, and syncs the lead status", async () => {
+    const contact = (await findOrCreateContact({ phone: "+5551955550001", firstMessageAt: new Date() })).contact!;
+    const lead = await createLeadForContact({ contactId: contact.id });
+    const opportunity = (await db.select().from(schema.opportunities).where(eq(schema.opportunities.leadId, lead.id)))[0]!;
 
-    const moved = moveOpportunity(opportunity.id, "proposta", "tester", 0);
-    expect(moved.stageKey).toBe("proposta");
+    const moved = await moveOpportunity(opportunity.id, "proposta", "tester", 0);
+    expect(moved!.stageKey).toBe("proposta");
 
-    const history = db.select().from(schema.opportunityHistory).where(eq(schema.opportunityHistory.opportunityId, opportunity.id)).all();
+    const history = await db.select().from(schema.opportunityHistory).where(eq(schema.opportunityHistory.opportunityId, opportunity.id));
     expect(history).toHaveLength(1);
     expect(history[0]?.fromStage).toBe("novo_lead");
     expect(history[0]?.toStage).toBe("proposta");
 
-    const updatedLead = db.select().from(schema.leads).where(eq(schema.leads.id, lead.id)).get();
+    const updatedLead = (await db.select().from(schema.leads).where(eq(schema.leads.id, lead.id)))[0];
     expect(updatedLead?.status).toBe("proposta");
   });
 
-  it("throws for a non-existent opportunity instead of silently doing nothing", () => {
-    expect(() => moveOpportunity("does-not-exist", "proposta", "tester", 0)).toThrow();
+  it("throws for a non-existent opportunity instead of silently doing nothing", async () => {
+    await expect(moveOpportunity("does-not-exist", "proposta", "tester", 0)).rejects.toThrow();
   });
 });

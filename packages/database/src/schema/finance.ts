@@ -1,18 +1,18 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, timestamp, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { customers } from "./customers";
 import { projects } from "./projects";
 import { sales } from "./sales";
 import { RECEIVABLE_STATUS, PAYABLE_STATUS } from "@nexodesk/shared";
 
-export const financialCategories = sqliteTable("financial_categories", {
+export const financialCategories = pgTable("financial_categories", {
   id: idColumn(),
   name: text("name").notNull(),
   type: text("type", { enum: ["receita", "despesa"] as const }).notNull(),
   ...timestamps,
 });
 
-export const accountsReceivable = sqliteTable(
+export const accountsReceivable = pgTable(
   "accounts_receivable",
   {
     id: idColumn(),
@@ -28,8 +28,8 @@ export const accountsReceivable = sqliteTable(
     installmentTotal: integer("installment_total").notNull().default(1),
     amountCents: integer("amount_cents").notNull(),
     paidAmountCents: integer("paid_amount_cents").notNull().default(0),
-    dueDate: integer("due_date", { mode: "timestamp_ms" }).notNull(),
-    paidAt: integer("paid_at", { mode: "timestamp_ms" }),
+    dueDate: timestamp("due_date", { mode: "date" }).notNull(),
+    paidAt: timestamp("paid_at", { mode: "date" }),
     paymentMethod: text("payment_method"),
     status: text("status", { enum: RECEIVABLE_STATUS }).notNull().default("pendente"),
     ...timestamps,
@@ -41,15 +41,15 @@ export const accountsReceivable = sqliteTable(
   ],
 );
 
-export const accountsPayable = sqliteTable(
+export const accountsPayable = pgTable(
   "accounts_payable",
   {
     id: idColumn(),
     categoryId: text("category_id").references(() => financialCategories.id),
     description: text("description").notNull(),
     amountCents: integer("amount_cents").notNull(),
-    dueDate: integer("due_date", { mode: "timestamp_ms" }).notNull(),
-    paidAt: integer("paid_at", { mode: "timestamp_ms" }),
+    dueDate: timestamp("due_date", { mode: "date" }).notNull(),
+    paidAt: timestamp("paid_at", { mode: "date" }),
     status: text("status", { enum: PAYABLE_STATUS }).notNull().default("pendente"),
     ...timestamps,
   },
@@ -57,7 +57,7 @@ export const accountsPayable = sqliteTable(
 );
 
 /** Concrete payment postings — a receivable can receive several partial payments. */
-export const payments = sqliteTable(
+export const payments = pgTable(
   "payments",
   {
     id: idColumn(),
@@ -65,7 +65,7 @@ export const payments = sqliteTable(
     payableId: text("payable_id").references(() => accountsPayable.id, { onDelete: "cascade" }),
     amountCents: integer("amount_cents").notNull(),
     method: text("method"),
-    paidAt: integer("paid_at", { mode: "timestamp_ms" }).notNull(),
+    paidAt: timestamp("paid_at", { mode: "date" }).notNull(),
     ...timestamps,
   },
   (table) => [index("payments_receivable_idx").on(table.receivableId)],

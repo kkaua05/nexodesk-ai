@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { customers } from "./customers";
 import { projects } from "./projects";
@@ -15,7 +15,7 @@ export const CALENDAR_EVENT_TYPE = [
   "atendimento",
 ] as const;
 
-export const calendarEvents = sqliteTable(
+export const calendarEvents = pgTable(
   "calendar_events",
   {
     id: idColumn(),
@@ -25,8 +25,8 @@ export const calendarEvents = sqliteTable(
     customerId: text("customer_id").references(() => customers.id),
     projectId: text("project_id").references(() => projects.id),
     responsibleUserId: text("responsible_user_id"),
-    startAt: integer("start_at", { mode: "timestamp_ms" }).notNull(),
-    endAt: integer("end_at", { mode: "timestamp_ms" }),
+    startAt: timestamp("start_at", { mode: "date" }).notNull(),
+    endAt: timestamp("end_at", { mode: "date" }),
     /**
      * When set, this event is a read-only projection of a receivable/payable due date
      * (spec §32) — auto-generated, never duplicated by manual creation.

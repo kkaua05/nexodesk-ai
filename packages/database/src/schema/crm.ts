@@ -1,10 +1,10 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { contacts } from "./whatsapp";
 import { services } from "./catalog";
 import { LEAD_STATUS, LEAD_ORIGIN, PIPELINE_STAGE } from "@nexodesk/shared";
 
-export const leads = sqliteTable(
+export const leads = pgTable(
   "leads",
   {
     id: idColumn(),
@@ -19,7 +19,7 @@ export const leads = sqliteTable(
     responsibleUserId: text("responsible_user_id"),
     firstMessage: text("first_message"),
     nextAction: text("next_action"),
-    nextActionAt: integer("next_action_at", { mode: "timestamp_ms" }),
+    nextActionAt: timestamp("next_action_at", { mode: "date" }),
     lostReason: text("lost_reason"),
     ...timestamps,
   },
@@ -30,7 +30,7 @@ export const leads = sqliteTable(
 );
 
 /** Score-affecting events, additive audit trail behind the lead-score engine (spec §16). */
-export const leadEvents = sqliteTable(
+export const leadEvents = pgTable(
   "lead_events",
   {
     id: idColumn(),
@@ -40,20 +40,20 @@ export const leadEvents = sqliteTable(
     type: text("type").notNull(),
     scoreDelta: integer("score_delta").notNull().default(0),
     description: text("description"),
-    metadata: text("metadata", { mode: "json" }),
+    metadata: jsonb("metadata"),
     ...timestamps,
   },
   (table) => [index("lead_events_lead_idx").on(table.leadId)],
 );
 
-export const tags = sqliteTable("tags", {
+export const tags = pgTable("tags", {
   id: idColumn(),
   name: text("name").notNull().unique(),
   color: text("color").notNull().default("#5B2EFF"),
   ...timestamps,
 });
 
-export const leadTags = sqliteTable(
+export const leadTags = pgTable(
   "lead_tags",
   {
     id: idColumn(),
@@ -67,7 +67,7 @@ export const leadTags = sqliteTable(
   (table) => [index("lead_tags_lead_idx").on(table.leadId)],
 );
 
-export const pipelineStages = sqliteTable("pipeline_stages", {
+export const pipelineStages = pgTable("pipeline_stages", {
   id: idColumn(),
   key: text("key", { enum: PIPELINE_STAGE }).notNull().unique(),
   label: text("label").notNull(),
@@ -75,7 +75,7 @@ export const pipelineStages = sqliteTable("pipeline_stages", {
   ...timestamps,
 });
 
-export const opportunities = sqliteTable(
+export const opportunities = pgTable(
   "opportunities",
   {
     id: idColumn(),
@@ -90,7 +90,7 @@ export const opportunities = sqliteTable(
   (table) => [index("opportunities_stage_idx").on(table.stageKey)],
 );
 
-export const opportunityHistory = sqliteTable(
+export const opportunityHistory = pgTable(
   "opportunity_history",
   {
     id: idColumn(),

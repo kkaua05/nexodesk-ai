@@ -18,16 +18,16 @@ const companySchema = z.object({
 
 const automationsSchema = z.record(z.string(), z.boolean());
 
-function getSetting(key: string) {
-  return db.select().from(schema.settings).where(eq(schema.settings.key, key)).get()?.value;
+async function getSetting(key: string) {
+  return (await (db.select().from(schema.settings).where(eq(schema.settings.key, key))))[0]?.value;
 }
 
-function setSetting(key: string, value: unknown) {
-  const existing = db.select().from(schema.settings).where(eq(schema.settings.key, key)).get();
+async function setSetting(key: string, value: unknown) {
+  const existing = (await (db.select().from(schema.settings).where(eq(schema.settings.key, key))))[0];
   if (existing) {
-    return db.update(schema.settings).set({ value }).where(eq(schema.settings.key, key)).returning().get();
+    return (await (db.update(schema.settings).set({ value }).where(eq(schema.settings.key, key)).returning()))[0];
   }
-  return db.insert(schema.settings).values({ key, value }).returning().get();
+  return (await (db.insert(schema.settings).values({ key, value }).returning()))[0];
 }
 
 export async function settingsRoutes(app: FastifyInstance) {
@@ -42,7 +42,7 @@ export async function settingsRoutes(app: FastifyInstance) {
 
   app.get("/settings/ai", async () => {
     const available = await aiProvider.isAvailable();
-    return { ...(getSetting("ai") as object), model: aiProvider.modelName, provider: aiProviderName, status: available ? "online" : "offline" };
+    return { ...((await getSetting("ai")) as object), model: aiProvider.modelName, provider: aiProviderName, status: available ? "online" : "offline" };
   });
 
   app.get("/settings/ai/test", async () => {
@@ -57,5 +57,5 @@ export async function settingsRoutes(app: FastifyInstance) {
     return setSetting("automations", body);
   });
 
-  app.get("/settings/integrations", async () => db.select().from(schema.integrations).all());
+  app.get("/settings/integrations", async () => (await (db.select().from(schema.integrations))));
 }

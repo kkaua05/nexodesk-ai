@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { customers } from "./customers";
 import { leads } from "./crm";
@@ -9,7 +9,7 @@ import { proposals } from "./proposals";
  * A won sale — the pivot record created transactionally by the "venda ganha" flow
  * (spec §22), fanning out into customer/project/receivables in one DB transaction.
  */
-export const sales = sqliteTable(
+export const sales = pgTable(
   "sales",
   {
     id: idColumn(),

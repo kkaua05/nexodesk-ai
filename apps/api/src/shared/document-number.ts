@@ -7,16 +7,16 @@ import { schema } from "@nexodesk/database";
  * Backed by a durable counter in `settings` (key `seq:<prefix>`) so numbers stay
  * monotonic even if a document is later deleted. Internal ids remain ULIDs.
  */
-export function nextDocumentNumber(prefix: string): string {
+export async function nextDocumentNumber(prefix: string): Promise<string> {
   const key = `seq:${prefix}`;
-  const existing = db.select().from(schema.settings).where(eq(schema.settings.key, key)).get();
+  const existing = (await (db.select().from(schema.settings).where(eq(schema.settings.key, key))))[0];
   const current = (existing?.value as number | undefined) ?? 0;
   const next = current + 1;
 
   if (existing) {
-    db.update(schema.settings).set({ value: next }).where(eq(schema.settings.key, key)).run();
+    (await (db.update(schema.settings).set({ value: next }).where(eq(schema.settings.key, key))));
   } else {
-    db.insert(schema.settings).values({ key, value: next }).run();
+    (await (db.insert(schema.settings).values({ key, value: next })));
   }
 
   return `${prefix}-${String(next).padStart(6, "0")}`;

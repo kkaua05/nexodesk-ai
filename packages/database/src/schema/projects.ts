@@ -1,11 +1,11 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, timestamp, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { customers } from "./customers";
 import { services } from "./catalog";
 import { sales } from "./sales";
 import { PROJECT_STATUS, TASK_STATUS, TASK_PRIORITY } from "@nexodesk/shared";
 
-export const projects = sqliteTable(
+export const projects = pgTable(
   "projects",
   {
     id: idColumn(),
@@ -20,15 +20,15 @@ export const projects = sqliteTable(
     progress: integer("progress").notNull().default(0),
     valueCents: integer("value_cents"),
     responsibleUserId: text("responsible_user_id"),
-    startDate: integer("start_date", { mode: "timestamp_ms" }),
-    dueDate: integer("due_date", { mode: "timestamp_ms" }),
+    startDate: timestamp("start_date", { mode: "date" }),
+    dueDate: timestamp("due_date", { mode: "date" }),
     ...timestamps,
   },
   (table) => [index("projects_customer_idx").on(table.customerId), index("projects_status_idx").on(table.status)],
 );
 
 /** Checklist stages copied from `service_stage_templates` at project creation (spec §24). */
-export const projectStages = sqliteTable(
+export const projectStages = pgTable(
   "project_stages",
   {
     id: idColumn(),
@@ -37,13 +37,13 @@ export const projectStages = sqliteTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     order: integer("order").notNull(),
-    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+    completedAt: timestamp("completed_at", { mode: "date" }),
     ...timestamps,
   },
   (table) => [index("project_stages_project_idx").on(table.projectId)],
 );
 
-export const tasks = sqliteTable(
+export const tasks = pgTable(
   "tasks",
   {
     id: idColumn(),
@@ -54,8 +54,8 @@ export const tasks = sqliteTable(
     responsibleUserId: text("responsible_user_id"),
     priority: text("priority", { enum: TASK_PRIORITY }).notNull().default("normal"),
     status: text("status", { enum: TASK_STATUS }).notNull().default("pendente"),
-    dueDate: integer("due_date", { mode: "timestamp_ms" }),
-    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+    dueDate: timestamp("due_date", { mode: "date" }),
+    completedAt: timestamp("completed_at", { mode: "date" }),
     ...timestamps,
   },
   (table) => [index("tasks_project_idx").on(table.projectId), index("tasks_status_idx").on(table.status)],

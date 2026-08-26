@@ -22,42 +22,41 @@ export interface CreateProjectInput {
  * (tipo de projeto) is picked, its stage-template checklist is copied in, same as the
  * automatic flow, so manually created projects get the same tracking UI for free.
  */
-export function createProject(input: CreateProjectInput) {
-  const customer = db.select().from(schema.customers).where(eq(schema.customers.id, input.customerId)).get();
+export async function createProject(input: CreateProjectInput) {
+  const customer = (await (db.select().from(schema.customers).where(eq(schema.customers.id, input.customerId))))[0];
   if (!customer) throw new NotFoundError("Cliente");
 
   if (input.serviceId) {
-    const service = db.select().from(schema.services).where(eq(schema.services.id, input.serviceId)).get();
+    const service = (await (db.select().from(schema.services).where(eq(schema.services.id, input.serviceId))))[0];
     if (!service) throw new NotFoundError("Serviço");
   }
 
-  const project = db.transaction((tx) => {
-    const created = tx
-      .insert(schema.projects)
-      .values({
-        customerId: input.customerId,
-        serviceId: input.serviceId,
-        name: input.name,
-        description: input.description,
-        valueCents: input.valueCents,
-        responsibleUserId: input.responsibleUserId,
-        startDate: input.startDate,
-        dueDate: input.dueDate,
-      })
-      .returning()
-      .get();
+  const project = await db.transaction(async (tx) => {
+    const created = (await (tx
+          .insert(schema.projects)
+          .values({
+            customerId: input.customerId,
+            serviceId: input.serviceId,
+            name: input.name,
+            description: input.description,
+            valueCents: input.valueCents,
+            responsibleUserId: input.responsibleUserId,
+            startDate: input.startDate,
+            dueDate: input.dueDate,
+          })
+          .returning()))[0]!;
 
     if (input.serviceId) {
-      const stageTemplates = tx.select().from(schema.serviceStageTemplates).where(eq(schema.serviceStageTemplates.serviceId, input.serviceId)).all();
+      const stageTemplates = (await (tx.select().from(schema.serviceStageTemplates).where(eq(schema.serviceStageTemplates.serviceId, input.serviceId))));
       for (const template of stageTemplates) {
-        tx.insert(schema.projectStages).values({ projectId: created.id, name: template.name, order: template.order }).run();
+        (await (tx.insert(schema.projectStages).values({ projectId: created.id, name: template.name, order: template.order })));
       }
     }
 
     return created;
   });
 
-  addTimelineEvent({ customerId: input.customerId, type: "project_created", title: `Projeto criado: ${project.name}` });
+  await addTimelineEvent({ customerId: input.customerId, type: "project_created", title: `Projeto criado: ${project.name}` });
   emitEvent(SOCKET_EVENTS.PROJECT_UPDATED, { project });
 
   return project;

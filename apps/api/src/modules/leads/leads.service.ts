@@ -6,60 +6,58 @@ import { SCORE_RULES, clampScore, type ScoreRuleKey } from "./lead-score.js";
 import { emitEvent } from "../../shared/realtime.js";
 import { SOCKET_EVENTS } from "@nexodesk/shared";
 
-export function createLeadForContact(params: { contactId: string; firstMessage?: string }) {
-  const lead = db
-    .insert(schema.leads)
-    .values({
-      contactId: params.contactId,
-      origin: "whatsapp",
-      status: "novo",
-      firstMessage: params.firstMessage,
-    })
-    .returning()
-    .get();
+export async function createLeadForContact(params: { contactId: string; firstMessage?: string }) {
+  const lead = (await (db
+      .insert(schema.leads)
+      .values({
+        contactId: params.contactId,
+        origin: "whatsapp",
+        status: "novo",
+        firstMessage: params.firstMessage,
+      })
+      .returning()))[0]!;
 
-  db.insert(schema.opportunities).values({ leadId: lead.id, stageKey: "novo_lead" }).run();
+  (await (db.insert(schema.opportunities).values({ leadId: lead.id, stageKey: "novo_lead" })));
 
   emitEvent(SOCKET_EVENTS.LEAD_CREATED, { leadId: lead.id, contactId: params.contactId });
   return lead;
 }
 
-export function findActiveLeadByContact(contactId: string) {
-  return db
-    .select()
-    .from(schema.leads)
-    .where(eq(schema.leads.contactId, contactId))
-    .orderBy(desc(schema.leads.createdAt))
-    .get();
+export async function findActiveLeadByContact(contactId: string) {
+  return (await (db
+      .select()
+      .from(schema.leads)
+      .where(eq(schema.leads.contactId, contactId))
+      .orderBy(desc(schema.leads.createdAt))))[0];
 }
 
-export function applyScoreEvent(leadId: string, ruleKey: ScoreRuleKey, description?: string) {
-  const lead = db.select().from(schema.leads).where(eq(schema.leads.id, leadId)).get();
+export async function applyScoreEvent(leadId: string, ruleKey: ScoreRuleKey, description?: string) {
+  const lead = (await (db.select().from(schema.leads).where(eq(schema.leads.id, leadId))))[0];
   if (!lead) throw new NotFoundError("Lead");
 
   const delta = SCORE_RULES[ruleKey];
   const newScore = clampScore(lead.score + delta);
 
-  db.insert(schema.leadEvents).values({ leadId, type: ruleKey, scoreDelta: delta, description }).run();
-  const updated = db.update(schema.leads).set({ score: newScore }).where(eq(schema.leads.id, leadId)).returning().get();
+  (await (db.insert(schema.leadEvents).values({ leadId, type: ruleKey, scoreDelta: delta, description })));
+  const updated = (await (db.update(schema.leads).set({ score: newScore }).where(eq(schema.leads.id, leadId)).returning()))[0];
 
   emitEvent(SOCKET_EVENTS.LEAD_UPDATED, { leadId, score: newScore });
   return updated;
 }
 
-export function updateLeadStatus(leadId: string, status: LeadStatus) {
-  const updated = db.update(schema.leads).set({ status }).where(eq(schema.leads.id, leadId)).returning().get();
+export async function updateLeadStatus(leadId: string, status: LeadStatus) {
+  const updated = (await (db.update(schema.leads).set({ status }).where(eq(schema.leads.id, leadId)).returning()))[0];
   if (!updated) throw new NotFoundError("Lead");
   emitEvent(SOCKET_EVENTS.LEAD_UPDATED, { leadId, status });
   return updated;
 }
 
-export function listLeads() {
-  return db.select().from(schema.leads).orderBy(desc(schema.leads.createdAt)).all();
+export async function listLeads() {
+  return (await (db.select().from(schema.leads).orderBy(desc(schema.leads.createdAt))));
 }
 
-export function getLeadById(id: string) {
-  const lead = db.select().from(schema.leads).where(eq(schema.leads.id, id)).get();
+export async function getLeadById(id: string) {
+  const lead = (await (db.select().from(schema.leads).where(eq(schema.leads.id, id))))[0];
   if (!lead) throw new NotFoundError("Lead");
   return lead;
 }

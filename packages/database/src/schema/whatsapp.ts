@@ -1,8 +1,8 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, boolean, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 import { CONVERSATION_STATUS, MESSAGE_DIRECTION, MESSAGE_STATUS, MESSAGE_TYPE } from "@nexodesk/shared";
 
-export const contacts = sqliteTable(
+export const contacts = pgTable(
   "contacts",
   {
     id: idColumn(),
@@ -14,14 +14,14 @@ export const contacts = sqliteTable(
     callingCode: text("calling_code"),
     avatarUrl: text("avatar_url"),
     email: text("email"),
-    firstContactAt: integer("first_contact_at", { mode: "timestamp_ms" }).notNull(),
-    lastContactAt: integer("last_contact_at", { mode: "timestamp_ms" }).notNull(),
+    firstContactAt: timestamp("first_contact_at", { mode: "date" }).notNull(),
+    lastContactAt: timestamp("last_contact_at", { mode: "date" }).notNull(),
     ...timestamps,
   },
   (table) => [uniqueIndex("contacts_phone_normalized_idx").on(table.phoneNormalized)],
 );
 
-export const conversations = sqliteTable(
+export const conversations = pgTable(
   "conversations",
   {
     id: idColumn(),
@@ -33,10 +33,10 @@ export const conversations = sqliteTable(
     status: text("status", { enum: CONVERSATION_STATUS }).notNull().default("aguardando_resposta"),
     unreadCount: integer("unread_count").notNull().default(0),
     lastMessagePreview: text("last_message_preview"),
-    lastMessageAt: integer("last_message_at", { mode: "timestamp_ms" }),
+    lastMessageAt: timestamp("last_message_at", { mode: "date" }),
     assignedUserId: text("assigned_user_id"),
     /** Nexo AI auto-reply for this conversation — turned off automatically the moment a human sends a message here. */
-    aiEnabled: integer("ai_enabled", { mode: "boolean" }).notNull().default(true),
+    aiEnabled: boolean("ai_enabled").notNull().default(true),
     ...timestamps,
   },
   (table) => [
@@ -46,7 +46,7 @@ export const conversations = sqliteTable(
   ],
 );
 
-export const messages = sqliteTable(
+export const messages = pgTable(
   "messages",
   {
     id: idColumn(),

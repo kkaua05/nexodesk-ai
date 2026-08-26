@@ -6,7 +6,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3333),
   HOST: z.string().default("0.0.0.0"),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
-  DATABASE_URL: z.string().default("file:./data/database.sqlite"),
+  DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória"),
   JWT_SECRET: z.string().min(16, "JWT_SECRET deve ter pelo menos 16 caracteres"),
   JWT_EXPIRES_IN: z.string().default("7d"),
   AI_PROVIDER: z.enum(["ollama", "groq"]).default("ollama"),

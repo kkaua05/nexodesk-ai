@@ -27,7 +27,7 @@ export async function calendarRoutes(app: FastifyInstance) {
 
   app.post("/calendar/events", async (request, reply) => {
     const body = createEventSchema.parse(request.body);
-    const event = db.insert(schema.calendarEvents).values(body).returning().get();
+    const event = (await (db.insert(schema.calendarEvents).values(body).returning()))[0];
     return reply.status(201).send(event);
   });
 }

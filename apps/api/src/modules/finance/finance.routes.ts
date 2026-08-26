@@ -25,13 +25,13 @@ export async function financeRoutes(app: FastifyInstance) {
 
   app.get("/finance/overview", async () => getFinancialOverview());
 
-  app.get("/finance/receivables", async () => db.select().from(schema.accountsReceivable).all());
-  app.get("/finance/payables", async () => db.select().from(schema.accountsPayable).all());
-  app.get("/finance/categories", async () => db.select().from(schema.financialCategories).all());
+  app.get("/finance/receivables", async () => (await (db.select().from(schema.accountsReceivable))));
+  app.get("/finance/payables", async () => (await (db.select().from(schema.accountsPayable))));
+  app.get("/finance/categories", async () => (await (db.select().from(schema.financialCategories))));
 
   app.post("/finance/receivables", { onRequest: [app.authenticate, app.requireRole("owner", "financeiro")] }, async (request, reply) => {
     const body = receivableSchema.parse(request.body);
-    const receivable = createReceivable(body);
+    const receivable = await createReceivable(body);
     return reply.status(201).send(receivable);
   });
 
@@ -43,7 +43,7 @@ export async function financeRoutes(app: FastifyInstance) {
 
   app.post("/finance/payables", { onRequest: [app.authenticate, app.requireRole("owner", "financeiro")] }, async (request, reply) => {
     const body = payableSchema.parse(request.body);
-    const payable = db.insert(schema.accountsPayable).values(body).returning().get();
+    const payable = (await (db.insert(schema.accountsPayable).values(body).returning()))[0];
     return reply.status(201).send(payable);
   });
 

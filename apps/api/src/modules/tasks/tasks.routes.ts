@@ -21,11 +21,11 @@ const statusSchema = z.object({ status: z.enum(TASK_STATUS) });
 export async function tasksRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
-  app.get("/tasks", async () => db.select().from(schema.tasks).all());
+  app.get("/tasks", async () => (await (db.select().from(schema.tasks))));
 
   app.post("/tasks", async (request, reply) => {
     const body = createSchema.parse(request.body);
-    const task = db.insert(schema.tasks).values(body).returning().get();
+    const task = (await (db.insert(schema.tasks).values(body).returning()))[0];
     emitEvent(SOCKET_EVENTS.TASK_CREATED, { task });
     return reply.status(201).send(task);
   });
@@ -33,12 +33,11 @@ export async function tasksRoutes(app: FastifyInstance) {
   app.patch("/tasks/:id/status", async (request) => {
     const { id } = request.params as { id: string };
     const { status } = statusSchema.parse(request.body);
-    const task = db
-      .update(schema.tasks)
-      .set({ status, completedAt: status === "concluida" ? new Date() : null })
-      .where(eq(schema.tasks.id, id))
-      .returning()
-      .get();
+    const task = (await (db
+          .update(schema.tasks)
+          .set({ status, completedAt: status === "concluida" ? new Date() : null })
+          .where(eq(schema.tasks.id, id))
+          .returning()))[0];
     if (!task) throw new NotFoundError("Tarefa");
     emitEvent(SOCKET_EVENTS.TASK_UPDATED, { task });
     return task;

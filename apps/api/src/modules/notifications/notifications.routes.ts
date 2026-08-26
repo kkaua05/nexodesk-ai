@@ -12,7 +12,7 @@ export async function notificationsRoutes(app: FastifyInstance) {
   });
 
   app.post("/notifications/read-all", async (request) => {
-    markAllNotificationsRead(request.user.sub);
+    await markAllNotificationsRead(request.user.sub);
     return { success: true };
   });
 }

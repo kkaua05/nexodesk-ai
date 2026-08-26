@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 
 export const NOTIFICATION_TYPE = [
@@ -12,7 +12,7 @@ export const NOTIFICATION_TYPE = [
   "whatsapp_desconectado",
 ] as const;
 
-export const notifications = sqliteTable(
+export const notifications = pgTable(
   "notifications",
   {
     id: idColumn(),
@@ -22,13 +22,13 @@ export const notifications = sqliteTable(
     body: text("body"),
     entityType: text("entity_type"),
     entityId: text("entity_id"),
-    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    readAt: timestamp("read_at", { mode: "date" }),
     ...timestamps,
   },
   (table) => [index("notifications_user_idx").on(table.userId), index("notifications_read_idx").on(table.readAt)],
 );
 
-export const auditLogs = sqliteTable(
+export const auditLogs = pgTable(
   "audit_logs",
   {
     id: idColumn(),
@@ -36,7 +36,7 @@ export const auditLogs = sqliteTable(
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
-    changes: text("changes", { mode: "json" }),
+    changes: jsonb("changes"),
     ...timestamps,
   },
   (table) => [index("audit_logs_entity_idx").on(table.entityType, table.entityId)],

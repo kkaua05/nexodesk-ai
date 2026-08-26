@@ -1,9 +1,9 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 
 /** Generic polymorphic association: (entityType, entityId) — kept intentionally loose
  *  since notes/attachments can hang off leads, customers, projects, proposals, etc. */
-export const notes = sqliteTable(
+export const notes = pgTable(
   "notes",
   {
     id: idColumn(),
@@ -16,7 +16,7 @@ export const notes = sqliteTable(
   (table) => [index("notes_entity_idx").on(table.entityType, table.entityId)],
 );
 
-export const attachments = sqliteTable(
+export const attachments = pgTable(
   "attachments",
   {
     id: idColumn(),

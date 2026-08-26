@@ -18,11 +18,11 @@ const closeSaleSchema = z.object({
 export async function salesRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
-  app.get("/sales", async () => db.select().from(schema.sales).all());
+  app.get("/sales", async () => (await (db.select().from(schema.sales))));
 
   app.post("/sales/close", async (request, reply) => {
     const body = closeSaleSchema.parse(request.body);
-    const result = closeSale({ ...body, responsibleUserId: request.user.sub });
+    const result = await closeSale({ ...body, responsibleUserId: request.user.sub });
     return reply.status(201).send(result);
   });
 }

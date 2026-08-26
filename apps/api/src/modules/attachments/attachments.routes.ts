@@ -22,12 +22,11 @@ export async function attachmentsRoutes(app: FastifyInstance) {
 
   app.get("/attachments", async (request) => {
     const { entityType, entityId } = querySchema.parse(request.query);
-    return db
-      .select()
-      .from(schema.attachments)
-      .where(and(eq(schema.attachments.entityType, entityType), eq(schema.attachments.entityId, entityId)))
-      .orderBy(desc(schema.attachments.createdAt))
-      .all();
+    return (await (db
+          .select()
+          .from(schema.attachments)
+          .where(and(eq(schema.attachments.entityType, entityType), eq(schema.attachments.entityId, entityId)))
+          .orderBy(desc(schema.attachments.createdAt))));
   });
 
   app.post("/attachments", async (request, reply) => {
@@ -52,26 +51,25 @@ export async function attachmentsRoutes(app: FastifyInstance) {
 
     const { size } = await stat(filePath);
 
-    const attachment = db
-      .insert(schema.attachments)
-      .values({
-        entityType,
-        entityId,
-        fileName: file.filename,
-        filePath: path.relative(UPLOAD_ROOT, filePath),
-        mimeType: file.mimetype,
-        sizeBytes: size,
-        uploadedByUserId: request.user.sub,
-      })
-      .returning()
-      .get();
+    const attachment = (await (db
+          .insert(schema.attachments)
+          .values({
+            entityType,
+            entityId,
+            fileName: file.filename,
+            filePath: path.relative(UPLOAD_ROOT, filePath),
+            mimeType: file.mimetype,
+            sizeBytes: size,
+            uploadedByUserId: request.user.sub,
+          })
+          .returning()))[0];
 
     return reply.status(201).send(attachment);
   });
 
   app.get("/attachments/:id/download", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const attachment = db.select().from(schema.attachments).where(eq(schema.attachments.id, id)).get();
+    const attachment = (await (db.select().from(schema.attachments).where(eq(schema.attachments.id, id))))[0];
     if (!attachment) throw new NotFoundError("Anexo");
 
     const filePath = path.join(UPLOAD_ROOT, attachment.filePath);
@@ -80,11 +78,11 @@ export async function attachmentsRoutes(app: FastifyInstance) {
 
   app.delete("/attachments/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const attachment = db.select().from(schema.attachments).where(eq(schema.attachments.id, id)).get();
+    const attachment = (await (db.select().from(schema.attachments).where(eq(schema.attachments.id, id))))[0];
     if (!attachment) throw new NotFoundError("Anexo");
 
     await unlink(path.join(UPLOAD_ROOT, attachment.filePath)).catch(() => undefined);
-    db.delete(schema.attachments).where(eq(schema.attachments.id, id)).run();
+    (await (db.delete(schema.attachments).where(eq(schema.attachments.id, id))));
     return reply.status(204).send();
   });
 }

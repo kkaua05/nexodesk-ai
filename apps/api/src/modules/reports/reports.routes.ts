@@ -13,19 +13,21 @@ export async function reportsRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
   app.get("/reports/leads.csv", async (_request, reply) => {
-    const leads = db.select().from(schema.leads).all();
-    const rows = leads.map((lead) => {
-      const contact = db.select().from(schema.contacts).where(eq(schema.contacts.id, lead.contactId)).get();
-      return {
-        nome: contact?.name ?? "",
-        telefone: contact?.phoneNormalized ?? "",
-        status: lead.status,
-        origem: lead.origin,
-        score: lead.score,
-        valorPotencial: lead.potentialValueCents ? fromCents(lead.potentialValueCents) : "",
-        criadoEm: lead.createdAt.toISOString(),
-      };
-    });
+    const leads = (await (db.select().from(schema.leads)));
+    const rows = await Promise.all(
+      leads.map(async (lead) => {
+        const contact = (await (db.select().from(schema.contacts).where(eq(schema.contacts.id, lead.contactId))))[0];
+        return {
+          nome: contact?.name ?? "",
+          telefone: contact?.phoneNormalized ?? "",
+          status: lead.status,
+          origem: lead.origin,
+          score: lead.score,
+          valorPotencial: lead.potentialValueCents ? fromCents(lead.potentialValueCents) : "",
+          criadoEm: lead.createdAt.toISOString(),
+        };
+      }),
+    );
     const csv = toCsv(rows, [
       { key: "nome", label: "Nome" },
       { key: "telefone", label: "Telefone" },
@@ -39,7 +41,7 @@ export async function reportsRoutes(app: FastifyInstance) {
   });
 
   app.get("/reports/proposals.csv", async (_request, reply) => {
-    const proposals = db.select().from(schema.proposals).all();
+    const proposals = (await (db.select().from(schema.proposals)));
     const rows = proposals.map((p) => ({
       numero: p.number,
       status: p.status,
@@ -58,18 +60,20 @@ export async function reportsRoutes(app: FastifyInstance) {
   });
 
   app.get("/reports/receivables.csv", async (_request, reply) => {
-    const receivables = db.select().from(schema.accountsReceivable).all();
-    const rows = receivables.map((r) => {
-      const customer = db.select().from(schema.customers).where(eq(schema.customers.id, r.customerId)).get();
-      return {
-        cliente: customer?.name ?? "",
-        descricao: r.description,
-        valor: fromCents(r.amountCents),
-        pago: fromCents(r.paidAmountCents),
-        vencimento: r.dueDate.toISOString(),
-        status: r.status,
-      };
-    });
+    const receivables = (await (db.select().from(schema.accountsReceivable)));
+    const rows = await Promise.all(
+      receivables.map(async (r) => {
+        const customer = (await (db.select().from(schema.customers).where(eq(schema.customers.id, r.customerId))))[0];
+        return {
+          cliente: customer?.name ?? "",
+          descricao: r.description,
+          valor: fromCents(r.amountCents),
+          pago: fromCents(r.paidAmountCents),
+          vencimento: r.dueDate.toISOString(),
+          status: r.status,
+        };
+      }),
+    );
     const csv = toCsv(rows, [
       { key: "cliente", label: "Cliente" },
       { key: "descricao", label: "Descrição" },
@@ -82,17 +86,19 @@ export async function reportsRoutes(app: FastifyInstance) {
   });
 
   app.get("/reports/sales.csv", async (_request, reply) => {
-    const sales = db.select().from(schema.sales).all();
-    const rows = sales.map((s) => {
-      const customer = db.select().from(schema.customers).where(eq(schema.customers.id, s.customerId)).get();
-      return {
-        numero: s.number,
-        cliente: customer?.name ?? "",
-        valor: fromCents(s.totalCents),
-        formaPagamento: s.paymentMethod ?? "",
-        criadoEm: s.createdAt.toISOString(),
-      };
-    });
+    const sales = (await (db.select().from(schema.sales)));
+    const rows = await Promise.all(
+      sales.map(async (s) => {
+        const customer = (await (db.select().from(schema.customers).where(eq(schema.customers.id, s.customerId))))[0];
+        return {
+          numero: s.number,
+          cliente: customer?.name ?? "",
+          valor: fromCents(s.totalCents),
+          formaPagamento: s.paymentMethod ?? "",
+          criadoEm: s.createdAt.toISOString(),
+        };
+      }),
+    );
     const csv = toCsv(rows, [
       { key: "numero", label: "Número" },
       { key: "cliente", label: "Cliente" },

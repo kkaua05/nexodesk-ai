@@ -1,26 +1,12 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1787288791894,
-      "tag": "0000_simple_xavin",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1787357489388,
-      "tag": "0001_complete_nextwave",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1787685677642,
-      "tag": "0002_pretty_ultimatum",
+      "version": "7",
+      "when": 1787715337603,
+      "tag": "0000_wet_marvex",
       "breakpoints": true
     }
   ]

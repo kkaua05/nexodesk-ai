@@ -18,31 +18,31 @@ const serviceSchema = z.object({
 export async function servicesRoutes(app: FastifyInstance) {
   app.addHook("onRequest", app.authenticate);
 
-  app.get("/services", async () => db.select().from(schema.services).all());
+  app.get("/services", async () => (await (db.select().from(schema.services))));
 
   app.get("/services/:id/stages", async (request) => {
     const { id } = request.params as { id: string };
-    return db.select().from(schema.serviceStageTemplates).where(eq(schema.serviceStageTemplates.serviceId, id)).all();
+    return (await (db.select().from(schema.serviceStageTemplates).where(eq(schema.serviceStageTemplates.serviceId, id))));
   });
 
   app.post("/services", { onRequest: [app.authenticate, app.requireRole("owner", "admin")] }, async (request, reply) => {
     const body = serviceSchema.parse(request.body);
-    const service = db.insert(schema.services).values(body).returning().get();
+    const service = (await (db.insert(schema.services).values(body).returning()))[0];
     return reply.status(201).send(service);
   });
 
   app.patch("/services/:id", { onRequest: [app.authenticate, app.requireRole("owner", "admin")] }, async (request) => {
     const { id } = request.params as { id: string };
     const body = serviceSchema.partial().parse(request.body);
-    const service = db.update(schema.services).set(body).where(eq(schema.services.id, id)).returning().get();
+    const service = (await (db.update(schema.services).set(body).where(eq(schema.services.id, id)).returning()))[0];
     if (!service) throw new NotFoundError("Serviço");
     return service;
   });
 
   app.patch("/services/:id/toggle", { onRequest: [app.authenticate, app.requireRole("owner", "admin")] }, async (request) => {
     const { id } = request.params as { id: string };
-    const current = db.select().from(schema.services).where(eq(schema.services.id, id)).get();
+    const current = (await (db.select().from(schema.services).where(eq(schema.services.id, id))))[0];
     if (!current) throw new NotFoundError("Serviço");
-    return db.update(schema.services).set({ isActive: !current.isActive }).where(eq(schema.services.id, id)).returning().get();
+    return (await (db.update(schema.services).set({ isActive: !current.isActive }).where(eq(schema.services.id, id)).returning()))[0];
   });
 }

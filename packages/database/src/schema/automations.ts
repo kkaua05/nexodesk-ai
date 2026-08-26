@@ -1,17 +1,17 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { pgTable, text, boolean, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { idColumn, timestamps } from "./_helpers";
 
-export const automations = sqliteTable("automations", {
+export const automations = pgTable("automations", {
   id: idColumn(),
   key: text("key").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
-  isEnabled: integer("is_enabled", { mode: "boolean" }).notNull().default(true),
+  isEnabled: boolean("is_enabled").notNull().default(true),
   ...timestamps,
 });
 
 /** Every automation execution is logged — automations are never invisible (spec §45). */
-export const automationRuns = sqliteTable(
+export const automationRuns = pgTable(
   "automation_runs",
   {
     id: idColumn(),
@@ -21,12 +21,12 @@ export const automationRuns = sqliteTable(
      * or for a one-off business action like the sale-conversion log in sales.service.ts).
      */
     automationKey: text("automation_key").notNull(),
-    startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
-    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+    startedAt: timestamp("started_at", { mode: "date" }).notNull(),
+    finishedAt: timestamp("finished_at", { mode: "date" }),
     status: text("status", { enum: ["sucesso", "erro", "pulado"] as const }).notNull(),
     entityType: text("entity_type"),
     entityId: text("entity_id"),
-    result: text("result", { mode: "json" }),
+    result: jsonb("result"),
     error: text("error"),
     ...timestamps,
   },
