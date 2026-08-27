@@ -1,12 +1,16 @@
 FROM node:22-bookworm-slim
 
-# System Chromium + the shared libs whatsapp-web.js (via Puppeteer) needs to launch
-# headless Chrome in a container — without these, Chrome fails to start with an opaque
-# "Failed to launch the browser process" error. Using the distro's Chromium instead of
-# Puppeteer's bundled download keeps the image smaller and the version pinned to what
-# Debian ships.
+# Only the shared libs headless Chrome needs to launch in a container — without these,
+# Chrome fails to start with an opaque "Failed to launch the browser process" error.
+# Puppeteer downloads and runs its OWN matched Chromium build during `pnpm install`
+# below (same as local dev, where no PUPPETEER_EXECUTABLE_PATH is set) — we intentionally
+# do NOT substitute Debian's `chromium` apt package here. That substitution was tried
+# first (smaller image, version pinned to what Debian ships) but caused WhatsApp-linking
+# to hang/crash in production ("Execution context was destroyed") in a way that never
+# reproduced locally: Puppeteer is tested against one specific Chromium build per
+# release, and pairing it with an arbitrary distro build reintroduces exactly this class
+# of obscure protocol/timing bug.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium \
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -27,9 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_SKIP_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    NODE_ENV=production
+ENV NODE_ENV=production
 
 RUN corepack enable && corepack prepare pnpm@11.22.0 --activate
 
