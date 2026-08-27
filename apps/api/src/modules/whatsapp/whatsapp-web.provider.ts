@@ -100,6 +100,13 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   private wireEvents() {
     this.client.on("qr", async (qr: string) => {
       this.setStatus({ status: "qr_necessario" });
+      // Re-arms the watchdog on every QR refresh (whatsapp-web.js cycles the QR every
+      // ~20-30s while unscanned), so it never fires while someone is legitimately still
+      // about to scan. The library stops refreshing the QR the moment a scan is
+      // detected — whether or not "authenticated" itself ever actually fires (see the
+      // note on READY_TIMEOUT_MS: the crash that hangs Business accounts happens before
+      // "authenticated" too) — so the last-armed timer is what catches a stall either way.
+      this.armReadyWatchdog();
       const dataUrl = await QRCode.toDataURL(qr);
       this.emit("qr", dataUrl);
     });
@@ -281,6 +288,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     }
 
     this.setStatus({ status: "conectando" });
+    this.armReadyWatchdog();
     try {
       await this.client.initialize();
     } catch (error) {
