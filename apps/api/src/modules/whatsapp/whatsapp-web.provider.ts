@@ -44,6 +44,13 @@ function resolveFromPhone(from: string, contact: Contact | undefined): string {
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BASE_DELAY_MS = 3000;
+// WhatsApp Business accounts hit a known, unfixed whatsapp-web.js bug where
+// Client.inject() races a post-auth WhatsApp Web navigation and the client never
+// reaches "ready" — the phone shows the device-naming screen (i.e. WhatsApp itself
+// considers the link successful) but our side is stuck forever with no signal that
+// anything went wrong. Timing out and retrying the handshake is the mitigation: the
+// race is non-deterministic, so a fresh attempt often clears it.
+const READY_TIMEOUT_MS = 45000;
 
 const WHATSAPP_MESSAGE_TYPE_MAP: Record<string, string> = {
   chat: "texto",
@@ -69,6 +76,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   private lastSentAt = 0;
   private readonly minSendIntervalMs: number;
   private readonly sessionPath: string;
+  private readyWatchdog: NodeJS.Timeout | undefined;
 
   constructor(options: { sessionPath: string; minSendIntervalMs?: number }) {
     super();
@@ -77,7 +85,13 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
 
     this.client = new Client({
       authStrategy: new LocalAuth({ dataPath: this.sessionPath }),
-      puppeteer: { headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] },
+      puppeteer: {
+        headless: true,
+        // --disable-dev-shm-usage: containers (Railway included) often mount a tiny
+        // /dev/shm, which makes Chromium crash or behave erratically under load —
+        // this makes it fall back to /tmp instead.
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      },
     });
 
     this.wireEvents();
@@ -92,9 +106,11 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
 
     this.client.on("authenticated", () => {
       this.reconnectAttempts = 0;
+      this.armReadyWatchdog();
     });
 
     this.client.on("ready", () => {
+      this.clearReadyWatchdog();
       const phoneNumber = this.client.info?.wid?.user;
       this.setStatus({
         status: "conectado",
@@ -105,11 +121,13 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     });
 
     this.client.on("disconnected", (reason: string) => {
+      this.clearReadyWatchdog();
       this.setStatus({ status: "desconectado", lastError: String(reason) });
       this.scheduleReconnect();
     });
 
     this.client.on("auth_failure", (message: string) => {
+      this.clearReadyWatchdog();
       this.setStatus({ status: "erro", lastError: message });
     });
 
@@ -206,6 +224,27 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     return undefined;
   }
 
+  private armReadyWatchdog() {
+    this.clearReadyWatchdog();
+    this.readyWatchdog = setTimeout(() => {
+      this.setStatus({
+        status: "erro",
+        lastError: "Tempo esgotado aguardando confirmação do WhatsApp — tentando novamente",
+      });
+      this.client
+        .destroy()
+        .catch(() => undefined)
+        .finally(() => this.scheduleReconnect());
+    }, READY_TIMEOUT_MS);
+  }
+
+  private clearReadyWatchdog() {
+    if (this.readyWatchdog) {
+      clearTimeout(this.readyWatchdog);
+      this.readyWatchdog = undefined;
+    }
+  }
+
   /** Exponential backoff, capped attempts — never loops forever (spec §6). */
   private scheduleReconnect() {
     if (this.reconnecting || this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -251,6 +290,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   }
 
   async disconnect(): Promise<void> {
+    this.clearReadyWatchdog();
     await this.client.destroy();
     this.setStatus({ status: "desconectado" });
   }
