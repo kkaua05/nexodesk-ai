@@ -257,7 +257,11 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
 
   async clearSession(): Promise<void> {
     await this.disconnect().catch(() => undefined);
-    rmSync(this.sessionPath, { recursive: true, force: true });
+    // Chromium releases its profile lock files (Default/, LOCK, etc.) asynchronously
+    // after client.destroy() resolves — an immediate rmSync can race that teardown and
+    // fail with ENOTEMPTY on a directory that's about to be empty a moment later. Node's
+    // built-in retry (maxRetries/retryDelay) absorbs that race instead of surfacing a 500.
+    rmSync(this.sessionPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
     this.setStatus({ status: "desconectado" });
   }
 
