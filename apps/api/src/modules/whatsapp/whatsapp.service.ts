@@ -35,6 +35,7 @@ async function getProvider(): Promise<MessagingProvider> {
     });
 
     provider.on("status", (status) => {
+      console.log(`[whatsapp] status -> ${status.status}${status.lastError ? ` (${status.lastError})` : ""}`);
       if (status.status === "conectado") lastQr = undefined;
 
       // Only alert on a real drop (was connected, now isn't) — never on the initial
