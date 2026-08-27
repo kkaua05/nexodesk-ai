@@ -45,3 +45,5 @@ Thumbs.db
 # test / coverage
 coverage/
 .tools/
+.vercel
+.env*
