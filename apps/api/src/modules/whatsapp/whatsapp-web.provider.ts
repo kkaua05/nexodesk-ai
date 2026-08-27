@@ -43,14 +43,19 @@ function resolveFromPhone(from: string, contact: Contact | undefined): string {
 }
 
 const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_BASE_DELAY_MS = 3000;
+// A previously-killed Chromium process needs a moment to actually release its memory/CPU
+// back to the OS on a constrained host — retrying too fast just starves the new attempt
+// too, compounding the same failure instead of giving it a clean slate.
+const RECONNECT_BASE_DELAY_MS = 5000;
 // WhatsApp Business accounts hit a known, unfixed whatsapp-web.js bug where
 // Client.inject() races a post-auth WhatsApp Web navigation and the client never
 // reaches "ready" — the phone shows the device-naming screen (i.e. WhatsApp itself
 // considers the link successful) but our side is stuck forever with no signal that
 // anything went wrong. Timing out and retrying the handshake is the mitigation: the
-// race is non-deterministic, so a fresh attempt often clears it.
-const READY_TIMEOUT_MS = 45000;
+// race is non-deterministic, so a fresh attempt often clears it. Kept generous (rather
+// than the original 45s) because a throttled shared-vCPU host can legitimately just be
+// slow, not stuck — cutting it off too early turns "slow" into "never succeeds".
+const READY_TIMEOUT_MS = 90000;
 
 const WHATSAPP_MESSAGE_TYPE_MAP: Record<string, string> = {
   chat: "texto",
@@ -87,10 +92,32 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
       authStrategy: new LocalAuth({ dataPath: this.sessionPath }),
       puppeteer: {
         headless: true,
-        // --disable-dev-shm-usage: containers (Railway included) often mount a tiny
-        // /dev/shm, which makes Chromium crash or behave erratically under load —
-        // this makes it fall back to /tmp instead.
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+        // Trimmed for low-CPU/low-memory hosts (e.g. Railway's free/trial tier): every
+        // flag below drops something Chromium normally spends CPU or RAM on that
+        // WhatsApp Web doesn't need headless (GPU compositing, extensions, background
+        // timers/networking, telemetry). None of this changes correctness — it only
+        // reduces the odds of the container's shared vCPU getting starved mid-launch,
+        // which is what turns the QR/auth handshake's inherent timing race (see
+        // READY_TIMEOUT_MS above) into a near-certain failure instead of a rare one.
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--disable-software-rasterizer",
+          "--disable-extensions",
+          "--disable-background-networking",
+          "--disable-background-timer-throttling",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-renderer-backgrounding",
+          "--disable-default-apps",
+          "--disable-sync",
+          "--disable-translate",
+          "--metrics-recording-only",
+          "--mute-audio",
+          "--no-first-run",
+          "--safebrowsing-disable-auto-update",
+        ],
       },
     });
 
