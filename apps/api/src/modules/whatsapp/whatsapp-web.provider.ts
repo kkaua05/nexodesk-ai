@@ -3,6 +3,7 @@ import type { Client as WWebClient, Message, Contact } from "whatsapp-web.js";
 const { Client, LocalAuth, MessageMedia } = pkg;
 import QRCode from "qrcode";
 import { rmSync } from "node:fs";
+import path from "node:path";
 import { createId } from "@nexodesk/shared";
 import { BaseMessagingProvider, type ConnectionStatus, type IncomingMessageEvent, type SendResult, type SendMediaInput } from "./messaging-provider.js";
 import { translateWhatsappSendError } from "./send-error.js";
@@ -312,6 +313,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     setTimeout(async () => {
       this.reconnectAttempts += 1;
       this.reconnecting = false;
+      this.clearStaleSingletonLocks();
       try {
         await this.client.initialize();
       } catch (error) {
@@ -319,6 +321,23 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
         this.scheduleReconnect();
       }
     }, delay);
+  }
+
+  /**
+   * Chromium writes `SingletonLock`/`SingletonSocket`/`SingletonCookie` into the
+   * profile dir (LocalAuth's `userDataDir`) to stop two browsers from sharing one
+   * profile. When the previous Chromium process dies abruptly — an OOM kill, a
+   * container restart, a Railway redeploy mid-connection — these files are never
+   * cleaned up, and the next launch refuses to start ("Failed to launch the browser
+   * process") because it thinks another instance already owns the profile, even
+   * though that process is long gone. Since connect() already guards against two
+   * *live* launches racing each other (the status check above), any lock file found
+   * here is necessarily stale and safe to remove before trying again.
+   */
+  private clearStaleSingletonLocks() {
+    for (const name of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
+      rmSync(path.join(this.sessionPath, "session", name), { force: true });
+    }
   }
 
   async connect(): Promise<void> {
@@ -331,6 +350,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
       return;
     }
 
+    this.clearStaleSingletonLocks();
     this.setStatus({ status: "conectando" });
     this.armReadyWatchdog();
     try {
