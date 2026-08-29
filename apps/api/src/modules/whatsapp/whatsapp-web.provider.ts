@@ -84,6 +84,19 @@ function alternateBrazilianDigits(digits: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Same fallback shape used for a message's externalId (see buildIncomingEvent) — kept
+ * as one function so the pre-async dedup check and the persisted id always agree.
+ */
+function messageDedupeKey(message: Message): string {
+  return message.id?._serialized || `local:${message.from}:${message.timestamp}:${(message.body ?? "").slice(0, 60)}`;
+}
+
+// Bounds the in-memory dedup window — large enough to cover both "message" and
+// "message_create" firing for the same id (always within the same tick or two), small
+// enough to never meaningfully grow memory over a long-running connection.
+const RECENT_MESSAGE_IDS_LIMIT = 500;
+
 const WHATSAPP_MESSAGE_TYPE_MAP: Record<string, string> = {
   chat: "texto",
   image: "imagem",
@@ -109,6 +122,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   private readonly minSendIntervalMs: number;
   private readonly sessionPath: string;
   private readyWatchdog: NodeJS.Timeout | undefined;
+  private readonly recentInboundIds = new Set<string>();
 
   constructor(options: { sessionPath: string; minSendIntervalMs?: number }) {
     super();
@@ -192,18 +206,23 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
       this.setStatus({ status: "erro", lastError: message });
     });
 
+    // "message" and "message_create" both fire for the same inbound message on this
+    // WhatsApp Web version, with no ordering guarantee — in production this isn't the
+    // rare quirk the client library's docs describe, it happens on essentially every
+    // message. Downstream tables (contacts, conversations, messages) are idempotent on
+    // their own unique keys, but a plain check-then-insert still has a race window
+    // between the two concurrent handlers, which surfaced as real unique-constraint
+    // crashes that dropped the message entirely instead of deduplicating cleanly.
+    // Claiming the message id here, synchronously, before either handler does any
+    // async work, closes that race at the source instead of patching each table.
     this.client.on("message", async (message: Message) => {
+      if (!this.claimInboundMessageOnce(message)) return;
       const event = await this.buildIncomingEvent(message);
       if (event) this.emit("message", event);
     });
 
-    // "message_create" fires for every message (including our own) from the same
-    // underlying WhatsApp Web hook as "message" — a rare but observed WhatsApp Web
-    // version quirk fires one event but not the other for a given message. Listening
-    // to both is a harmless safety net: buildIncomingEvent() already filters out
-    // fromMe, and appendMessage() downstream is idempotent on externalId, so a message
-    // caught by both listeners is deduplicated automatically instead of doubling up.
     this.client.on("message_create", async (message: Message) => {
+      if (!this.claimInboundMessageOnce(message)) return;
       const event = await this.buildIncomingEvent(message);
       if (event) this.emit("message", event);
     });
@@ -224,6 +243,25 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   private setStatus(status: ConnectionStatus) {
     this.status = status;
     this.emit("status", status);
+  }
+
+  /**
+   * True (and records the id) the first time this message id is seen; false on every
+   * repeat — including the second of the "message"/"message_create" pair for the same
+   * message. Bounded to RECENT_MESSAGE_IDS_LIMIT so a long-running connection doesn't
+   * grow this set forever; eviction order doesn't matter since only very recent ids can
+   * ever actually collide.
+   */
+  private claimInboundMessageOnce(message: Message): boolean {
+    const key = messageDedupeKey(message);
+    if (this.recentInboundIds.has(key)) return false;
+
+    this.recentInboundIds.add(key);
+    if (this.recentInboundIds.size > RECENT_MESSAGE_IDS_LIMIT) {
+      const oldest = this.recentInboundIds.values().next().value;
+      if (oldest !== undefined) this.recentInboundIds.delete(oldest);
+    }
+    return true;
   }
 
   /** See HISTORY_SYNC_GRACE_MS — true when a message's real WhatsApp timestamp predates this connection. */
@@ -255,7 +293,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     // deterministic fallback (same chat + timestamp + body always produce the same
     // key) keeps the message from being dropped while still deduplicating retries of
     // the exact same event.
-    const externalMessageId = message.id?._serialized || `local:${message.from}:${message.timestamp}:${(message.body ?? "").slice(0, 60)}`;
+    const externalMessageId = messageDedupeKey(message);
 
     return {
       externalMessageId,

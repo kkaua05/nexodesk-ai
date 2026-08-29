@@ -8,10 +8,17 @@ export async function findOrCreateConversation(contactId: string, externalId: st
   const existing = (await (db.select().from(schema.conversations).where(eq(schema.conversations.externalId, externalId))))[0];
   if (existing) return existing;
 
-  return (await (db
-      .insert(schema.conversations)
-      .values({ contactId, externalId, status: "aguardando_resposta" })
-      .returning()))[0];
+  // Same atomic-insert reasoning as appendMessage() below: the provider can fire two
+  // events for the same inbound message, and a plain check-then-insert races between
+  // them on this conversation's unique externalId.
+  const [created] = await db
+    .insert(schema.conversations)
+    .values({ contactId, externalId, status: "aguardando_resposta" })
+    .onConflictDoNothing({ target: schema.conversations.externalId })
+    .returning();
+
+  if (created) return created;
+  return (await (db.select().from(schema.conversations).where(eq(schema.conversations.externalId, externalId))))[0]!;
 }
 
 export interface AppendMessageInput {
