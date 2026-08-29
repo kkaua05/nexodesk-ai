@@ -474,21 +474,31 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     // forces WhatsApp to resolve (and cache) it up front, and also lets us tell a truly
     // unregistered number apart from this transient first-contact case.
     //
-    // getNumberId is documented to resolve to null for a number that isn't on
-    // WhatsApp, but on some WhatsApp Web versions it throws instead ("Cannot read
-    // properties of undefined (reading 'id')") — both outcomes mean the same thing
-    // here, so a thrown error is treated identically to a null result.
+    // getNumberId resolving to null is WhatsApp's genuine "not on WhatsApp" answer —
+    // but a *thrown* error here can just as easily mean the page/connection died mid
+    // check (a real, observed case: the connection dropping in the same instant as this
+    // call). Treating both the same previously mislabeled connection hiccups as "number
+    // not registered", which sent the operator chasing a phantom formatting bug instead
+    // of the real, transient cause. Only a clean null is reported as unregistered; a
+    // thrown error is logged with the actual cause and surfaced as a retryable failure.
     const digits = recipient.replace(/\D/g, "");
-    let numberId = await this.client.getNumberId(digits).catch(() => null);
+    let numberId: Awaited<ReturnType<WWebClient["getNumberId"]>> = null;
+    let lastLookupError: unknown;
 
-    // Retry with the other BR digit-length variant before giving up — see
-    // alternateBrazilianDigits() for why a genuinely registered number can fail here.
-    if (!numberId) {
-      const alternate = alternateBrazilianDigits(digits);
-      if (alternate) numberId = await this.client.getNumberId(alternate).catch(() => null);
+    for (const candidate of [digits, alternateBrazilianDigits(digits)].filter((v): v is string => !!v)) {
+      try {
+        numberId = await this.client.getNumberId(candidate);
+        if (numberId) break;
+      } catch (error) {
+        lastLookupError = error;
+      }
     }
 
     if (!numberId) {
+      if (lastLookupError) {
+        console.error(`[whatsapp] falha ao verificar número ${digits}:`, (lastLookupError as Error).message);
+        throw new Error("Não foi possível verificar este número agora (conexão instável). Tente novamente em alguns segundos.");
+      }
       throw new Error("Este número não está registrado no WhatsApp.");
     }
     return numberId._serialized;
