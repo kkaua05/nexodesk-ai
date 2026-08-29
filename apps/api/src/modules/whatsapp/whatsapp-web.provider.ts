@@ -282,6 +282,17 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     if (this.isHistorySyncReplay(message)) return undefined;
 
     const contact = await message.getContact().catch(() => undefined);
+    const fromPhone = resolveFromPhone(message.from, contact);
+
+    // This is a 1:1 sales/support inbox (spec §5) — a real customer messaging the
+    // connected number always resolves to an actual phone JID ("@c.us"). A sender that
+    // stays an unresolved "@lid" here isn't a customer to follow up with; in practice
+    // it's WhatsApp Business/Community/Channel traffic (updates from businesses or
+    // communities this number follows) being delivered the same way a direct message
+    // is. Creating a lead/contact for those pollutes the pipeline with people who never
+    // actually reached out — treat them the same as groups/broadcasts: not our inbox.
+    if (fromPhone.endsWith("@lid")) return undefined;
+
     const media = message.hasMedia ? await this.downloadMediaWithRetry(message) : undefined;
     const mediaFailedToLoad = message.hasMedia && !media;
 
@@ -298,7 +309,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     return {
       externalMessageId,
       externalChatId: message.from,
-      fromPhone: resolveFromPhone(message.from, contact),
+      fromPhone,
       fromName: contact?.pushname ?? contact?.name,
       avatarUrl: await contact?.getProfilePicUrl().catch(() => undefined),
       // A media message with no caption has body === "" (not null) — falling through to
