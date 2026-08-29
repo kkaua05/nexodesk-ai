@@ -58,6 +58,15 @@ const RECONNECT_BASE_DELAY_MS = 5000;
 // slow, not stuck — cutting it off too early turns "slow" into "never succeeds".
 const READY_TIMEOUT_MS = 90000;
 
+// Every fresh WhatsApp Web session (a new QR scan) re-syncs the phone's entire existing
+// chat history, replaying it through the same "message"/"message_create" events as a
+// genuinely new message — with no flag distinguishing sync from live traffic. Without
+// this cutoff, every contact who ever texted the phone becomes a "new lead" the moment
+// the session reconnects. A message is only treated as real incoming traffic if its own
+// WhatsApp timestamp is at or after this connection's start, with a grace window to
+// still catch messages that arrived during a brief reconnect gap.
+const HISTORY_SYNC_GRACE_MS = 5 * 60 * 1000;
+
 /**
  * WhatsApp's own server-side canonicalization of Brazilian mobile numbers is
  * inconsistent: some accounts only resolve via `getNumberId` with the modern 9-digit
@@ -217,6 +226,13 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     this.emit("status", status);
   }
 
+  /** See HISTORY_SYNC_GRACE_MS — true when a message's real WhatsApp timestamp predates this connection. */
+  private isHistorySyncReplay(message: Message): boolean {
+    const connectedSince = this.status.connectedSince;
+    if (!connectedSince) return false;
+    return message.timestamp * 1000 < connectedSince.getTime() - HISTORY_SYNC_GRACE_MS;
+  }
+
   /**
    * Groups (@g.us), broadcast lists (@broadcast) and status updates are out of scope
    * for a 1:1 sales/support inbox — without this filter, a group's JID gets misread as
@@ -225,6 +241,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   private async buildIncomingEvent(message: Message): Promise<IncomingMessageEvent | undefined> {
     if (message.isStatus || message.fromMe) return undefined;
     if (message.from.endsWith("@g.us") || message.from.endsWith("@broadcast")) return undefined;
+    if (this.isHistorySyncReplay(message)) return undefined;
 
     const contact = await message.getContact().catch(() => undefined);
     const media = message.hasMedia ? await this.downloadMediaWithRetry(message) : undefined;
