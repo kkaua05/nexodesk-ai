@@ -57,6 +57,23 @@ const RECONNECT_BASE_DELAY_MS = 5000;
 // slow, not stuck — cutting it off too early turns "slow" into "never succeeds".
 const READY_TIMEOUT_MS = 90000;
 
+/**
+ * WhatsApp's own server-side canonicalization of Brazilian mobile numbers is
+ * inconsistent: some accounts only resolve via `getNumberId` with the modern 9-digit
+ * local number (55 + 2-digit DDD + 9xxxxxxxx), others only resolve via the legacy
+ * 8-digit form (the same number without that leading 9) — sending to the "wrong" one
+ * makes `getNumberId` return null even though the contact is genuinely on WhatsApp.
+ * Returns the other digit-length variant of a BR mobile number, or undefined if the
+ * input isn't a 12/13-digit "55" number this ambiguity applies to.
+ */
+function alternateBrazilianDigits(digits: string): string | undefined {
+  if (!digits.startsWith("55")) return undefined;
+  const local = digits.slice(4); // after "55" + 2-digit DDD
+  if (digits.length === 13 && local.startsWith("9")) return digits.slice(0, 4) + local.slice(1); // drop the 9
+  if (digits.length === 12) return digits.slice(0, 4) + "9" + local; // add the 9
+  return undefined;
+}
+
 const WHATSAPP_MESSAGE_TYPE_MAP: Record<string, string> = {
   chat: "texto",
   image: "imagem",
@@ -375,7 +392,16 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     // WhatsApp, but on some WhatsApp Web versions it throws instead ("Cannot read
     // properties of undefined (reading 'id')") — both outcomes mean the same thing
     // here, so a thrown error is treated identically to a null result.
-    const numberId = await this.client.getNumberId(recipient.replace(/\D/g, "")).catch(() => null);
+    const digits = recipient.replace(/\D/g, "");
+    let numberId = await this.client.getNumberId(digits).catch(() => null);
+
+    // Retry with the other BR digit-length variant before giving up — see
+    // alternateBrazilianDigits() for why a genuinely registered number can fail here.
+    if (!numberId) {
+      const alternate = alternateBrazilianDigits(digits);
+      if (alternate) numberId = await this.client.getNumberId(alternate).catch(() => null);
+    }
+
     if (!numberId) {
       throw new Error("Este número não está registrado no WhatsApp.");
     }

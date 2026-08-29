@@ -29,25 +29,36 @@ export interface AppendMessageInput {
 /**
  * Idempotent on `externalId` (spec §94): reprocessing the same provider event
  * (e.g. a webhook retry) never creates a duplicate message.
+ *
+ * Uses an atomic `ON CONFLICT DO NOTHING` insert rather than a check-then-insert —
+ * the WhatsApp provider can legitimately fire two events (`message` and
+ * `message_create`) for the same inbound message with no ordering guarantee, so a
+ * plain SELECT-then-INSERT has a race window where both calls pass the "does it
+ * exist?" check before either commits, and the loser crashes on the unique
+ * constraint instead of being recognized as a duplicate.
  */
 export async function appendMessage(input: AppendMessageInput) {
-  const existing = (await (db.select().from(schema.messages).where(eq(schema.messages.externalId, input.externalId))))[0];
-  if (existing) return { message: existing, isNew: false };
+  const [inserted] = await db
+    .insert(schema.messages)
+    .values({
+      conversationId: input.conversationId,
+      externalId: input.externalId,
+      direction: input.direction,
+      type: input.type ?? "texto",
+      body: input.body,
+      mediaUrl: input.mediaUrl,
+      mediaFileName: input.mediaFileName,
+      status: input.status ?? (input.direction === "inbound" ? "lido" : "enviado"),
+      sentByUserId: input.sentByUserId,
+    })
+    .onConflictDoNothing({ target: schema.messages.externalId })
+    .returning();
 
-  const message = (await (db
-      .insert(schema.messages)
-      .values({
-        conversationId: input.conversationId,
-        externalId: input.externalId,
-        direction: input.direction,
-        type: input.type ?? "texto",
-        body: input.body,
-        mediaUrl: input.mediaUrl,
-        mediaFileName: input.mediaFileName,
-        status: input.status ?? (input.direction === "inbound" ? "lido" : "enviado"),
-        sentByUserId: input.sentByUserId,
-      })
-      .returning()))[0]!;
+  if (!inserted) {
+    const existing = (await (db.select().from(schema.messages).where(eq(schema.messages.externalId, input.externalId))))[0]!;
+    return { message: existing, isNew: false };
+  }
+  const message = inserted;
 
   const preview = input.body?.slice(0, 140) ?? `[${input.type ?? "mensagem"}]`;
   // A human sending a message here is a handoff signal — the bot goes quiet on this
