@@ -46,7 +46,7 @@ export const aiMemories = pgTable(
     leadId: text("lead_id").references(() => leads.id, { onDelete: "cascade" }),
     content: text("content").notNull(),
     kind: text("kind", { enum: ["fato", "inferencia"] as const }).notNull(),
-    sourceConversationId: text("source_conversation_id").references(() => conversations.id),
+    sourceConversationId: text("source_conversation_id").references(() => conversations.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (table) => [index("ai_memories_customer_idx").on(table.customerId)],
