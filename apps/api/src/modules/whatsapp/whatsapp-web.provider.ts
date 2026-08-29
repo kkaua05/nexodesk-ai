@@ -24,6 +24,12 @@ function isPostSendSerializationGlitch(error: unknown): boolean {
   return /Cannot read propert.*of undefined/i.test(message);
 }
 
+/** See FATAL_PAGE_ERROR_PATTERN — true when Puppeteer's page has died under the client. */
+function isFatalPageError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return FATAL_PAGE_ERROR_PATTERN.test(message);
+}
+
 /**
  * WhatsApp addresses some contacts (mostly business/community-linked accounts) by an
  * opaque "LID" instead of their real phone number — `message.from` looks like
@@ -66,6 +72,22 @@ const READY_TIMEOUT_MS = 90000;
 // WhatsApp timestamp is at or after this connection's start, with a grace window to
 // still catch messages that arrived during a brief reconnect gap.
 const HISTORY_SYNC_GRACE_MS = 5 * 60 * 1000;
+
+// Puppeteer's page can die mid-session (the container running low on CPU/memory, an
+// internal WhatsApp Web reload) without whatsapp-web.js ever firing "disconnected" —
+// the Client's own state still says "ready", but every call into the page now throws
+// the same handful of Puppeteer-level errors. Left alone, the app keeps reporting
+// "conectado" while sending and receiving are both silently dead until someone
+// notices and manually disconnects/reconnects. Any match here is treated as fatal:
+// the whole browser is torn down and reconnected from scratch, never assumed to
+// self-heal.
+const FATAL_PAGE_ERROR_PATTERN = /Execution context was destroyed|Target closed|Session closed|Protocol error|detached Frame/i;
+
+// How often a healthy-looking connection is actively poked with a cheap page call
+// (getState()) to catch the "looks connected, page is actually dead" failure mode
+// proactively — without this, a dead page after the last real send/receive can sit
+// silently forever, since nothing else would ever call into the page again to notice.
+const HEARTBEAT_INTERVAL_MS = 60 * 1000;
 
 /**
  * WhatsApp's own server-side canonicalization of Brazilian mobile numbers is
@@ -122,6 +144,8 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
   private readonly minSendIntervalMs: number;
   private readonly sessionPath: string;
   private readyWatchdog: NodeJS.Timeout | undefined;
+  private heartbeat: NodeJS.Timeout | undefined;
+  private recovering = false;
   private readonly recentInboundIds = new Set<string>();
 
   constructor(options: { sessionPath: string; minSendIntervalMs?: number }) {
@@ -193,10 +217,12 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
         connectedSince: new Date(),
         deviceInfo: this.client.info?.platform,
       });
+      this.startHeartbeat();
     });
 
     this.client.on("disconnected", (reason: string) => {
       this.clearReadyWatchdog();
+      this.stopHeartbeat();
       this.setStatus({ status: "desconectado", lastError: String(reason) });
       this.scheduleReconnect();
     });
@@ -363,6 +389,51 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     }
   }
 
+  /**
+   * Actively pokes the page every HEARTBEAT_INTERVAL_MS while "conectado" — the only
+   * defense against the page dying silently (see FATAL_PAGE_ERROR_PATTERN) between
+   * real sends/receives, which otherwise leaves the app reporting a healthy connection
+   * indefinitely while nothing actually works. getState() is the cheapest real call
+   * into the page; while genuinely connected it should never fail, so any failure here
+   * is treated as proof the browser needs a full, fresh reconnect.
+   */
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeat = setInterval(async () => {
+      try {
+        await this.client.getState();
+      } catch (error) {
+        await this.forceRecover(`heartbeat: ${(error as Error).message}`);
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeat) {
+      clearInterval(this.heartbeat);
+      this.heartbeat = undefined;
+    }
+  }
+
+  /**
+   * Tears the browser down and reconnects from scratch instead of trusting
+   * whatsapp-web.js to self-heal — see FATAL_PAGE_ERROR_PATTERN. Guarded by
+   * `recovering` because this can be triggered from several places (the heartbeat, a
+   * failed send, a failed number lookup) in quick succession for the same underlying
+   * crash; only the first should actually act.
+   */
+  private async forceRecover(reason: string) {
+    if (this.recovering) return;
+    this.recovering = true;
+    console.error(`[whatsapp] recuperação forçada (conexão parecia ok mas não estava): ${reason}`);
+    this.stopHeartbeat();
+    this.clearReadyWatchdog();
+    await this.client.destroy().catch(() => undefined);
+    this.recovering = false;
+    this.setStatus({ status: "desconectado", lastError: reason });
+    this.scheduleReconnect();
+  }
+
   /** Exponential backoff, capped attempts — never loops forever (spec §6). */
   private scheduleReconnect() {
     if (this.reconnecting || this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -429,6 +500,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
 
   async disconnect(): Promise<void> {
     this.clearReadyWatchdog();
+    this.stopHeartbeat();
     await this.client.destroy();
     this.setStatus({ status: "desconectado" });
   }
@@ -497,6 +569,7 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
     if (!numberId) {
       if (lastLookupError) {
         console.error(`[whatsapp] falha ao verificar número ${digits}:`, (lastLookupError as Error).message);
+        if (isFatalPageError(lastLookupError)) void this.forceRecover(`resolveChatId: ${(lastLookupError as Error).message}`);
         throw new Error("Não foi possível verificar este número agora (conexão instável). Tente novamente em alguns segundos.");
       }
       throw new Error("Este número não está registrado no WhatsApp.");
@@ -520,9 +593,12 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
       this.lastSentAt = Date.now();
       return { externalId: sent.id._serialized };
     } catch (error) {
-      if (!isPostSendSerializationGlitch(error)) throw error;
-      this.lastSentAt = Date.now();
-      return { externalId: `local:${createId()}` };
+      if (isPostSendSerializationGlitch(error)) {
+        this.lastSentAt = Date.now();
+        return { externalId: `local:${createId()}` };
+      }
+      if (isFatalPageError(error)) void this.forceRecover(`sendMessage: ${(error as Error).message}`);
+      throw error;
     }
   }
 
@@ -536,9 +612,12 @@ export class WhatsAppWebProvider extends BaseMessagingProvider {
       this.lastSentAt = Date.now();
       return { externalId: sent.id._serialized };
     } catch (error) {
-      if (!isPostSendSerializationGlitch(error)) throw error;
-      this.lastSentAt = Date.now();
-      return { externalId: `local:${createId()}` };
+      if (isPostSendSerializationGlitch(error)) {
+        this.lastSentAt = Date.now();
+        return { externalId: `local:${createId()}` };
+      }
+      if (isFatalPageError(error)) void this.forceRecover(`sendMedia: ${(error as Error).message}`);
+      throw error;
     }
   }
 
