@@ -23,6 +23,7 @@ import {
   projectStages,
   tasks,
   accountsReceivable,
+  accountsPayable,
   payments,
   calendarEvents,
   followUps,
@@ -155,8 +156,11 @@ async function seedSystemData() {
   }
 }
 
+const DEMO_PHONES = ["+5551999990001", "+5551999990002", "+5551999990003", "+5551999990004"];
+
 async function seedDemoData() {
-  const alreadySeeded = (await (db.select().from(contacts))).length > 0;
+  const existingContacts = await db.select().from(contacts);
+  const alreadySeeded = existingContacts.some((c) => DEMO_PHONES.includes(c.phoneNormalized ?? ""));
   if (alreadySeeded) {
     console.log("[seed] dados de demonstração já existem, pulando");
     return;
@@ -166,10 +170,10 @@ async function seedDemoData() {
   const days = (n: number) => now - n * 24 * 60 * 60 * 1000;
 
   const demoPeople = [
-    { name: "João Silva", phone: "+5551999990001", service: "Landing Page", segment: "loja de roupas", firstMsg: "Oi, quanto custa uma landing page?", score: 87, daysAgo: 2 },
-    { name: "Maria Oliveira", phone: "+5551999990002", service: "E-commerce", segment: "artesanato", firstMsg: "Preciso de uma loja virtual, vocês fazem?", score: 64, daysAgo: 5 },
-    { name: "Empresa X Ltda", phone: "+5551999990003", service: "Sistema Web", segment: "logística", firstMsg: "Vi o trabalho de vocês, gostaria de um orçamento para um sistema interno.", score: 45, daysAgo: 9 },
-    { name: "Carlos Souza", phone: "+5551999990004", service: "Manutenção", segment: "consultoria", firstMsg: "Meu site caiu, conseguem verificar?", score: 30, daysAgo: 1 },
+    { name: "João Silva", phone: "+5551999990001", service: "Landing Page", segment: "loja de roupas", firstMsg: "Oi, quanto custa uma landing page?", score: 87, daysAgo: 2, origin: "whatsapp" as const },
+    { name: "Maria Oliveira", phone: "+5551999990002", service: "E-commerce", segment: "artesanato", firstMsg: "Preciso de uma loja virtual, vocês fazem?", score: 64, daysAgo: 5, origin: "indicacao" as const },
+    { name: "Empresa X Ltda", phone: "+5551999990003", service: "Sistema Web", segment: "logística", firstMsg: "Vi o trabalho de vocês, gostaria de um orçamento para um sistema interno.", score: 45, daysAgo: 9, origin: "site" as const },
+    { name: "Carlos Souza", phone: "+5551999990004", service: "Manutenção", segment: "consultoria", firstMsg: "Meu site caiu, conseguem verificar?", score: 30, daysAgo: 1, origin: "whatsapp" as const },
   ];
 
   const services_ = (await (db.select().from(services)));
@@ -218,7 +222,7 @@ async function seedDemoData() {
               contactId,
               serviceId: service?.id,
               status: "qualificacao",
-              origin: "whatsapp",
+              origin: person.origin,
               score: person.score,
               potentialValueCents: service?.basePriceCents,
               firstMessage: person.firstMsg,
@@ -355,6 +359,28 @@ async function seedDemoData() {
   const cold = (await (db.select().from(leads))).find((l) => l.score < 50)!;
   (await (db.insert(followUps)
         .values({ reason: "orcamento_parado", leadId: cold.id, note: "Sem resposta há alguns dias", dueAt: new Date(now + 1 * 24 * 60 * 60 * 1000) })));
+
+  // --- despesas de exemplo (accounts payable) ---
+  const financeCats = await db.select().from(financialCategories);
+  const catByName = (name: string) => financeCats.find((c) => c.name === name)?.id;
+  const demoExpenses = [
+    { desc: "Domínio nexodesk.com.br", category: "Domínio", value: 45, daysAgo: 20, paid: true },
+    { desc: "Hospedagem VPS — mensalidade", category: "Hospedagem", value: 60, daysAgo: 12, paid: true },
+    { desc: "Assinatura Figma", category: "Software", value: 35, daysAgo: 8, paid: true },
+    { desc: "Anúncios Instagram Ads", category: "Publicidade", value: 150, daysAgo: 6, paid: false },
+    { desc: "DAS — Simples Nacional", category: "Impostos", value: 90, daysAgo: -3, paid: false },
+  ];
+  for (const e of demoExpenses) {
+    (await (db.insert(accountsPayable)
+          .values({
+            categoryId: catByName(e.category),
+            description: e.desc,
+            amountCents: toCents(e.value),
+            dueDate: new Date(days(e.daysAgo)),
+            paidAt: e.paid ? new Date(days(e.daysAgo)) : null,
+            status: e.paid ? "pago" : e.daysAgo > 0 ? "vencido" : "pendente",
+          })));
+  }
 
   console.log("[seed] dados de demonstração criados");
 }
